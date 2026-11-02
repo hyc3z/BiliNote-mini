@@ -62,6 +62,11 @@ class VideoRequest(BaseModel):
         # 后续校验和 yt-dlp 下载拿到的都是干净链接
         if isinstance(data, dict) and data.get("platform") == "bilibili" and data.get("video_url"):
             data["video_url"] = normalize_video_url(str(data["video_url"]))
+        if isinstance(data, dict):
+            if data.get("platform") != "bilibili":
+                raise ValueError("精简版仅支持 B 站视频")
+            data.update(screenshot=False, video_understanding=False, grid_size=[],
+                        format=["link"], link=True, style="minimal")
         return data
 
     @field_validator("video_url")
@@ -85,6 +90,8 @@ def save_note_to_file(task_id: str, note):
     os.makedirs(NOTE_OUTPUT_DIR, exist_ok=True)
     with open(os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json"), "w", encoding="utf-8") as f:
         json.dump(asdict(note), f, ensure_ascii=False, indent=2)
+    from app.services.library import save
+    save(task_id, asdict(note))
 
 
 def _persist_prefetched_transcript(task_id: str, transcript: dict) -> None:
@@ -156,12 +163,6 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
         return
     save_note_to_file(task_id, note)
 
-    # 自动建立向量索引（用于 AI 问答），失败不影响笔记生成
-    try:
-        from app.services.vector_store import VectorStoreManager
-        VectorStoreManager().index_task(task_id)
-    except Exception as e:
-        logger.warning(f"向量索引失败（不影响笔记）: {e}")
 
 
 @router.post('/delete_task')
@@ -174,40 +175,11 @@ def delete_task(data: RecordRequest):
         return R.error(msg=e)
 
 
-@router.post("/upload")
-async def upload(file: UploadFile = File(...)):
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-    file_location = os.path.join(UPLOAD_DIR, file.filename)
-
-    with open(file_location, "wb+") as f:
-        f.write(await file.read())
-
-    # 假设你静态目录挂载了 /uploads
-    return R.success({"url": f"/uploads/{file.filename}"})
-
-
 @router.post("/generate_note")
 def generate_note(data: VideoRequest, background_tasks: BackgroundTasks):
     try:
-        # 就绪门禁：本地转写引擎（fast-whisper / mlx-whisper）必须等模型下载完才能跑视频，
-        # 否则任务会卡在首次下载（慢 / OOM / 截断），用户只看到一个静默失败的任务。
-        # 客户端已抓好字幕（prefetched_transcript）则不需要转写，跳过检查。
-        if not data.prefetched_transcript:
-            from app.services.transcriber_config_manager import TranscriberConfigManager
-            readiness = TranscriberConfigManager().is_model_ready()
-            if not readiness["ready"]:
-                logger.warning(f"拒绝 generate_note：{readiness['reason']}")
-                return R.error(
-                    msg=readiness["reason"],
-                    code=300102,
-                    data={
-                        "reason": "transcriber_model_not_ready",
-                        "transcriber_type": readiness["transcriber_type"],
-                        "model_size": readiness["model_size"],
-                        "downloading": readiness["downloading"],
-                    },
-                )
-
+        if data.task_id:
+            uuid.UUID(data.task_id)
         video_id = extract_video_id(data.video_url, data.platform)
         # if not video_id:
         #     raise HTTPException(status_code=400, detail="无法提取视频 ID")
@@ -244,15 +216,36 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks):
 
 
 @router.get("/task_status/{task_id}")
-def get_task_status(task_id: str):
+def get_task_status(task_id: str, include_transcript: bool = True):
+    try:
+        uuid.UUID(task_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="无效任务编号")
     status_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.status.json")
     result_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json")
+
+    partial_result = {}
+    if include_transcript:
+        for suffix, key in (("_transcript.json", "transcript"), ("_audio.json", "audio_meta")):
+            cached_path = Path(NOTE_OUTPUT_DIR) / f"{task_id}{suffix}"
+            try:
+                payload = json.loads(cached_path.read_text(encoding="utf-8"))
+                if key != "transcript" or payload.get("segments"):
+                    partial_result[key] = payload
+            except (OSError, ValueError):
+                pass
 
     # 优先读状态文件
     if os.path.exists(status_path):
         with open(status_path, "r", encoding="utf-8") as f:
             status_content = json.load(f)
 
+        import time
+        now = time.time()
+        progress = dict(status_content)
+        end = progress.get("updated_at", now) if progress.get("status") in ("SUCCESS", "FAILED") else now
+        progress["elapsed_seconds"] = max(0, end - progress.get("started_at", end))
+        progress["stage_elapsed_seconds"] = max(0, end - progress.get("stage_started_at", end))
         status = status_content.get("status")
         message = status_content.get("message", "")
 
@@ -265,6 +258,7 @@ def get_task_status(task_id: str):
                     "status": status,
                     "result": result_content,
                     "message": message,
+                    "progress": progress,
                     "task_id": task_id
                 })
             else:
@@ -276,12 +270,14 @@ def get_task_status(task_id: str):
                 })
 
         if status == TaskStatus.FAILED.value:
-            return R.error(message or "任务失败", code=500)
+            return R.success({"status": TaskStatus.FAILED.value, "message": message or "任务失败", "progress": progress, "partial_result": partial_result, "task_id": task_id})
 
         # 处理中状态
         return R.success({
             "status": status,
             "message": message,
+                    "progress": progress,
+            "partial_result": partial_result,
             "task_id": task_id
         })
 
@@ -303,28 +299,93 @@ def get_task_status(task_id: str):
     })
 
 
-@router.get("/image_proxy")
-async def image_proxy(request: Request, url: str):
-    headers = {
-        "Referer": "https://www.bilibili.com/",
-        "User-Agent": request.headers.get("User-Agent", ""),
-    }
+class ClearModelDownloadRequest(BaseModel):
+    task_id: str
 
+@router.post("/clear_failed_model_download")
+def clear_failed_model_download(data: ClearModelDownloadRequest):
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url, headers=headers)
+        uuid.UUID(data.task_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="无效任务编号")
+    target = Path(NOTE_OUTPUT_DIR) / f"{data.task_id}.status.json"
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="任务不存在")
+    record = json.loads(target.read_text(encoding="utf-8"))
+    if record.get("status") != "FAILED" or not record.get("can_reset_model_download"):
+        raise HTTPException(status_code=409, detail="仅下载失败的任务可以清理")
+    from app.transcriber.whisper_models import resolve_whisper_model, is_local_target
+    from app.transcriber.model_transfer import clean_incomplete
+    from app.utils.path_helper import get_model_dir
+    repo = resolve_whisper_model(record["model"])
+    if is_local_target(repo):
+        raise HTTPException(status_code=409, detail="不清理用户提供的本地模型")
+    try:
+        count = clean_incomplete(get_model_dir("whisper"), repo)
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return R.success(data={"removed_files": count})
 
-            if resp.status_code != 200:
-                raise HTTPException(status_code=resp.status_code, detail="图片获取失败")
 
-            content_type = resp.headers.get("Content-Type", "image/jpeg")
-            return StreamingResponse(
-                resp.aiter_bytes(),
-                media_type=content_type,
-                headers={
-                    "Cache-Control": "public, max-age=86400",  #  缓存一天
-                    "Content-Type": content_type,
-                }
-            )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@router.get("/library")
+def search_library(q: str = ""):
+    from app.services.library import search
+    return R.success(data=search(q[:500]))
+
+@router.get("/library/{task_id}")
+def library_result(task_id: str):
+    from app.services.library import get
+    result = get(task_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="笔记不存在")
+    return R.success(data=result)
+
+@router.delete("/tasks/{task_id}")
+def remove_history_task(task_id: str):
+    try:
+        uuid.UUID(task_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="无效任务编号")
+    folder = Path(NOTE_OUTPUT_DIR).resolve()
+    status_file = folder / f"{task_id}.status.json"
+    if status_file.exists():
+        record = json.loads(status_file.read_text(encoding="utf-8"))
+        if record.get("status") not in ("SUCCESS", "FAILED"):
+            raise HTTPException(status_code=409, detail="处理中任务不能删除，请等待处理结束")
+    from app.services.replay_chat import jobs_db
+    with jobs_db() as db:
+        job=db.execute('SELECT state FROM jobs WHERE task_id=?',(task_id,)).fetchone()
+        if job and job['state'] in ('PENDING','RUNNING'):
+            raise HTTPException(status_code=409, detail="聊天后台任务仍在处理中，不能删除")
+        db.execute("UPDATE jobs SET state='DELETED' WHERE task_id=?",(task_id,))
+    from app.services.library import delete
+    delete(task_id)
+    for suffix in (".json", ".status.json", "_audio.json", "_transcript.json", "_transcript.txt", "_markdown.md", "_markdown.gpt.checkpoint.json"):
+        target = folder / (task_id + suffix)
+        if target.is_file() and not target.is_symlink():
+            target.unlink()
+    return R.success()
+
+
+@router.get("/chat_jobs")
+def chat_jobs():
+    from app.services.replay_chat import jobs_db
+    with jobs_db() as db:
+        rows=db.execute("SELECT task_id,title,source,state,created_at FROM jobs WHERE state != 'DELETED' ORDER BY created_at DESC LIMIT 100").fetchall()
+    return R.success(data=[dict(row) for row in rows])
+
+class CorrectionRequest(BaseModel):
+    old:str
+    new:str
+    apply:bool=False
+
+@router.post('/tasks/{task_id}/correction')
+def correct_terminology(task_id:str,data:CorrectionRequest):
+    status=Path(NOTE_OUTPUT_DIR)/f'{task_id}.status.json'
+    try:
+        uuid.UUID(task_id)
+        if status.is_file() and json.loads(status.read_text(encoding='utf-8')).get('status') not in ('SUCCESS','FAILED'):
+            raise HTTPException(409,'请等待当前任务完成后校正')
+        from app.services.terminology import correct
+        return R.success(data=correct(task_id,data.old,data.new,data.apply))
+    except ValueError as exc:raise HTTPException(422,str(exc))

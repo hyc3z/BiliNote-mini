@@ -4,14 +4,21 @@ from typing import Any, Callable
 
 
 class ConcurrentTaskExecutor:
-    """使用线程池并发执行任务，替代原来的串行锁。"""
+    """Mini 使用单工作线程依次处理任务，避免并发加载转录模型。"""
 
     def __init__(self, max_workers: int | None = None):
-        self._max_workers = max_workers or int(os.getenv("TASK_MAX_WORKERS", "3"))
+        self._max_workers = max_workers or int("1")
         self._pool = ThreadPoolExecutor(max_workers=self._max_workers)
 
     def run(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        future: Future = self._pool.submit(fn, *args, **kwargs)
+        def guarded():
+            from pathlib import Path
+            from filelock import FileLock
+            folder=Path(__file__).resolve().parents[2]/'data'
+            folder.mkdir(exist_ok=True)
+            with FileLock(str(folder/'processing.lock')):
+                return fn(*args, **kwargs)
+        future: Future = self._pool.submit(guarded)
         return future.result()
 
     def shutdown(self, wait: bool = True):

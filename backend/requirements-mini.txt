@@ -1,0 +1,2 @@
+# Compatibility alias; requirements.txt is the canonical core dependency list.
+-r requirements.txt

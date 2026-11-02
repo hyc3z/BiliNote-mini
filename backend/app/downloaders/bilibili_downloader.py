@@ -47,12 +47,24 @@ class BilibiliDownloader(Downloader, ABC):
         logger.info("已生成 B站 Netscape Cookie 文件: %s (条目: %d)", tmp.name, len(lines) - 1)
         return tmp.name
 
+    def _report_progress(self, event):
+        callback = getattr(self, "progress_callback", None)
+        if not callback:
+            return
+        total = event.get("total_bytes") or event.get("total_bytes_estimate")
+        done = event.get("downloaded_bytes", 0)
+        callback(message="音轨下载完成" if event.get("status") == "finished" else "正在下载音轨",
+            substage="downloading_audio", downloaded_bytes=done, total_bytes=total,
+            percent=min(100.0, done / total * 100) if total else None,
+            speed_bytes=event.get("speed"), eta_seconds=event.get("eta"))
+
     def download(
         self,
         video_url: str,
         output_dir: Union[str, None] = None,
         quality: DownloadQuality = "fast",
-        need_video:Optional[bool]=False
+        need_video:Optional[bool]=False,
+        skip_download: bool = False
     ) -> AudioDownloadResult:
         if output_dir is None:
             output_dir = get_data_dir()
@@ -64,16 +76,12 @@ class BilibiliDownloader(Downloader, ABC):
 
         ydl_opts = {
             **YDL_RETRY_OPTS,
-            'format': 'bestaudio[ext=m4a]/bestaudio/best',
+            'format': 'bestaudio[ext=m4a]/bestaudio',
             'outtmpl': output_path,
             'http_headers': {'Referer': 'https://www.bilibili.com'},
-            'postprocessors': [
-                {
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '64',
-                }
-            ],
+            # Keep the original audio: faster-whisper decodes it through PyAV.
+            'postprocessors': [],
+            'progress_hooks': [self._report_progress],
             'noplaylist': True,
             'quiet': False,
         }
@@ -81,15 +89,17 @@ class BilibiliDownloader(Downloader, ABC):
             ydl_opts['cookiefile'] = self._cookiefile
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(video_url, download=True)
+            info = ydl.extract_info(video_url, download=not skip_download)
             video_id = info.get("id")
             title = info.get("title")
             duration = info.get("duration", 0)
             cover_url = info.get("thumbnail")
-            audio_path = os.path.join(output_dir, f"{video_id}.mp3")
+            audio_path = "" if skip_download else ydl.prepare_filename(info)
+            if not skip_download and not os.path.isfile(audio_path):
+                raise FileNotFoundError(f"音轨下载完成但文件不存在：{audio_path}")
 
         return AudioDownloadResult(
-            file_path=audio_path,
+            file_path="" if skip_download else audio_path,
             title=title,
             duration=duration,
             cover_url=cover_url,

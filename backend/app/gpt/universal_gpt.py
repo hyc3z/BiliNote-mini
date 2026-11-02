@@ -8,11 +8,9 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.gpt.prompt import BASE_PROMPT, AI_SUM, SCREENSHOT, LINK, MERGE_PROMPT
-from app.gpt.utils import fix_markdown
+from app.gpt.prompt import MERGE_PROMPT
 from app.gpt.request_chunker import RequestChunker
 from app.models.transcriber_model import TranscriptSegment
-from datetime import timedelta
 from typing import List
 
 
@@ -23,7 +21,7 @@ class UniversalGPT(GPT):
         self.temperature = temperature
         self.screenshot = False
         self.link = False
-        self.max_request_bytes = int(os.getenv("OPENAI_MAX_REQUEST_BYTES", str(45 * 1024 * 1024)))
+        self.max_request_bytes = int(os.getenv("OPENAI_MAX_REQUEST_BYTES", str(24000)))
         self.checkpoint_dir = Path(os.getenv("NOTE_OUTPUT_DIR", "note_results"))
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         # 初始化时缓存重试配置，避免每次请求重复读取环境变量
@@ -31,7 +29,7 @@ class UniversalGPT(GPT):
         self._retry_base_backoff = float(os.getenv("OPENAI_RETRY_BACKOFF_SECONDS", "1.5"))
 
     def _format_time(self, seconds: float) -> str:
-        return str(timedelta(seconds=int(seconds)))[2:]
+        return f"{int(seconds) // 60:02d}:{int(seconds) % 60:02d}"
 
     def _build_segment_text(self, segments: List[TranscriptSegment]) -> str:
         return "\n".join(
@@ -101,6 +99,7 @@ class UniversalGPT(GPT):
 
     def _build_source_signature(self, source: GPTSource) -> str:
         payload = {
+            "prompt_version": "mini-live-v1",
             "model": self.model,
             "temperature": self.temperature,
             "max_request_bytes": self.max_request_bytes,
@@ -240,9 +239,15 @@ class UniversalGPT(GPT):
             self._estimate_messages_bytes
         )
 
+        callback = getattr(self, "progress_callback", None)
+        if callback:
+            callback(message="正在合并话题与去重", substage="merging", percent=None, device="API", model=self.model)
         current_partials = list(partials)
         while len(current_partials) > 1:
             groups = merge_chunker.group_texts_by_budget(current_partials, build_messages)
+            if len(groups) >= len(current_partials):
+                # Avoid an infinite loop when every summary occupies its own group.
+                return "\n\n---\n\n".join(current_partials)
             new_partials = []
             for group_idx, group in enumerate(groups):
                 messages = build_messages(group)
@@ -299,9 +304,24 @@ class UniversalGPT(GPT):
                 extras=source.extras
             )
 
+        if not chunks:
+            raise ValueError("没有可总结的文字，请检查字幕或转录结果")
+        # Add a small amount of preceding context without exceeding the request budget.
+        for index in range(len(chunks) - 1, 0, -1):
+            previous = chunks[index - 1].segments[-2:]
+            candidate = previous + chunks[index].segments
+            messages = self.create_messages(candidate, title=source.title, tags=source.tags,
+                _format=source._format, style=source.style, extras=source.extras)
+            if self._estimate_messages_bytes(messages) <= self.max_request_bytes:
+                chunks[index].segments = candidate
+
         partials = []
         if checkpoint_key and source_signature:
             checkpoint = self._load_checkpoint(checkpoint_key, source_signature)
+            if checkpoint and checkpoint.get("phase") == "merge":
+                merged = self._merge_partials(checkpoint["partials"], checkpoint_key, source_signature)
+                self._clear_checkpoint(checkpoint_key)
+                return merged
             if checkpoint and isinstance(checkpoint.get("partials"), list):
                 partials = checkpoint["partials"]
 
@@ -309,6 +329,9 @@ class UniversalGPT(GPT):
             partials = []
 
         for chunk in chunks[len(partials):]:
+            callback = getattr(self, "progress_callback", None)
+            if callback:
+                callback(message=f"正在总结第 {len(partials)+1}/{len(chunks)} 段", substage="summarizing_chunks", completed_chunks=len(partials), total_chunks=len(chunks), percent=len(partials)/len(chunks)*100, model=self.model, device="API")
             messages = self.create_messages(
                 chunk.segments,
                 title=source.title,
