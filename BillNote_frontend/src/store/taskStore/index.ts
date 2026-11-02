@@ -1,12 +1,12 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import { delete_task, generateNote } from '@/services/note.ts'
+
 import { v4 as uuidv4 } from 'uuid'
-import toast from 'react-hot-toast'
+
 import { get, set, del } from 'idb-keyval'
 
 
-export type TaskStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILD'
+export type TaskStatus = 'PENDING' | 'RUNNING' | 'PARSING' | 'DOWNLOADING' | 'MODEL_DOWNLOADING' | 'MODEL_LOADING' | 'TRANSCRIBING' | 'SUMMARIZING' | 'SAVING' | 'SUCCESS' | 'FAILED'
 
 export interface AudioMeta {
   cover_url: string
@@ -40,12 +40,17 @@ export interface Markdown {
 
 export interface Task {
   id: string
+  progress?: Record<string, any>
+  summaryStale?: boolean
+  message?: string
+  platform?: string
   markdown: string|Markdown [] //为了兼容之前的笔记
   transcript: Transcript
   status: TaskStatus
   audioMeta: AudioMeta
   createdAt: string
   formData: {
+    [key: string]: any
     video_url: string
     link: undefined | boolean
     screenshot: undefined | boolean
@@ -59,18 +64,15 @@ export interface Task {
 interface TaskStore {
   tasks: Task[]
   currentTaskId: string | null
-  addPendingTask: (taskId: string, platform: string) => void
+  addPendingTask: (taskId: string, platform: string, formData: any) => void
   updateTaskContent: (id: string, data: Partial<Omit<Task, 'id' | 'createdAt'>>) => void
   removeTask: (id: string) => void
-  clearTasks: () => void
   setCurrentTask: (taskId: string | null) => void
-  getCurrentTask: () => Task | null
-  retryTask: (id: string) => void
 }
 
 export const useTaskStore = create<TaskStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       tasks: [],
       currentTaskId: null,
 
@@ -111,7 +113,7 @@ export const useTaskStore = create<TaskStore>()(
             tasks: state.tasks.map(task => {
               if (task.id !== id) return task
 
-              if (task.status === 'SUCCESS' && data.status === 'SUCCESS') return task
+              if (task.status === 'SUCCESS' && data.status === 'SUCCESS' && !data.transcript && !data.markdown) return task
 
               // 如果是 markdown 字符串，封装为版本
               if (typeof data.markdown === 'string') {
@@ -154,57 +156,8 @@ export const useTaskStore = create<TaskStore>()(
           })),
 
 
-      getCurrentTask: () => {
-        const currentTaskId = get().currentTaskId
-        return get().tasks.find(task => task.id === currentTaskId) || null
-      },
-      retryTask: async (id: string, payload?: any) => {
-
-        if (!id){
-          toast.error('任务不存在')
-          return
-        }
-        const task = get().tasks.find(task => task.id === id)
-        console.log('retry',task)
-        if (!task) return
-
-        const newFormData = payload || task.formData
-        try {
-          await generateNote({
-            ...newFormData,
-            task_id: id,
-          })
-        } catch (e: any) {
-          // 就绪门禁：转写模型未下载好。不要把任务标成 PENDING（会一直转），
-          // 给提示让用户先去下载。
-          if (e?.data?.reason === 'transcriber_model_not_ready') {
-            toast.error(
-              e?.data?.downloading
-                ? '转写模型正在下载中，请稍候再重试'
-                : '转写模型尚未下载，请先去「设置 → 音频转写配置」页下载',
-            )
-            return
-          }
-          console.error('重试任务失败：', e)
-          return
-        }
-
-        set(state => ({
-          tasks: state.tasks.map(t =>
-              t.id === id
-                  ? {
-                    ...t,
-                    formData: newFormData, // ✅ 显式更新 formData
-                    status: 'PENDING',
-                  }
-                  : t
-          ),
-        }))
-      },
-
-
       removeTask: async id => {
-        const task = get().tasks.find(t => t.id === id)
+
 
         // 更新 Zustand 状态
         set(state => ({
@@ -212,17 +165,10 @@ export const useTaskStore = create<TaskStore>()(
           currentTaskId: state.currentTaskId === id ? null : state.currentTaskId,
         }))
 
-        // 调用后端删除接口（如果找到了任务）
-        if (task) {
-          await delete_task({
-            video_id: task.audioMeta.video_id,
-            platform: task.platform,
-          })
-        }
+
       },
 
-      clearTasks: () => set({ tasks: [], currentTaskId: null }),
-
+    
       setCurrentTask: taskId => set({ currentTaskId: taskId }),
     }),
     {
@@ -242,3 +188,5 @@ export const useTaskStore = create<TaskStore>()(
     }
   )
 )
+
+

@@ -66,7 +66,7 @@ def resolve_bilibili_short_url(short_url: str) -> Optional[str]:
     :return: 真实的视频链接或None
     """
     try:
-        response = requests.head(short_url, allow_redirects=True)
+        response = requests.head(short_url, allow_redirects=True, timeout=15)
         return response.url
     except requests.RequestException as e:
         print(f"Error resolving short URL: {e}")

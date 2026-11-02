@@ -198,7 +198,7 @@ class ModelService:
             existing = get_model_by_provider_and_name(provider_id, model_name)
             if existing:
                 print(f"模型 {model_name} 已存在于供应商ID {provider_id} 下，跳过插入")
-                return False
+                return True
 
             # 插入模型
             insert_model(provider_id=provider_id, model_name=model_name)

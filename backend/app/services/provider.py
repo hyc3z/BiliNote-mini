@@ -1,5 +1,8 @@
 from fastapi.encoders import jsonable_encoder
-from kombu import uuid
+from uuid import uuid4
+
+def uuid():
+    return str(uuid4())
 
 from app.db.models.providers import Provider
 from app.db.provider_dao import (

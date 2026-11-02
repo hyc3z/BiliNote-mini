@@ -1,0 +1,6 @@
+mcp==1.26.0
+sse-starlette==2.4.1
+pydantic-settings==2.10.1
+pyjwt==2.10.1
+jsonschema==4.25.1
+httpx-sse==0.4.1

@@ -8,14 +8,11 @@ from app.transcriber.whisper_models import (
     is_local_target,
     hf_cache_dirname,
 )
-from app.utils.env_checker import is_cuda_available, is_torch_installed
 from app.utils.logger import get_logger
 from app.utils.path_helper import get_model_dir
 
-from events import transcription_finished
 from pathlib import Path
 import os
-import shutil
 
 
 '''
@@ -39,7 +36,10 @@ class WhisperTranscriber(Transcriber):
             device: str = 'cpu',
             compute_type: str = None,
             cpu_threads: int = 1,
+            progress_callback=None,
     ):
+        from app.transcriber.cuda_runtime import configure_cuda_runtime
+        configure_cuda_runtime()
         if device == 'cpu' or device is None:
             self.device = 'cpu'
         else:
@@ -51,84 +51,49 @@ class WhisperTranscriber(Transcriber):
         self.model_size = model_size
 
         model_dir = get_model_dir("whisper")
-        try:
-            self.model = self._build_model(model_size, model_dir)
-        except Exception as e:
-            # 自愈：损坏 / 截断 / 半成品 cache → 删掉对应 HF cache 重下一次
-            logger.warning(f"加载 whisper-{model_size} 失败：{e}；清理 cache 后重新下载")
-            self._purge_cache(model_dir, model_size)
-            self.model = self._build_model(model_size, model_dir)
-
-    def _build_model(self, model_size: str, model_dir: str) -> WhisperModel:
-        # resolve 把模型名映射成可加载标识：内置 size→Systran repo_id、自定义映射、
-        # 直通的 repo_id 或本地路径。faster-whisper 对本地目录走 os.path.isdir 分支，
-        # 对 repo_id 走 download_model(cache_dir=download_root)，两者都吃 model_size_or_path。
+        from app.transcriber.model_transfer import ensure_model
         target = resolve_whisper_model(model_size)
-        return WhisperModel(
-            model_size_or_path=target,
-            device=self.device,
-            compute_type=self.compute_type,
-            download_root=model_dir,
-        )
-
-    @staticmethod
-    def _purge_cache(model_dir: str, model_size: str) -> None:
-        """加载失败时清掉对应 HF cache 的 snapshot 目录，强制下次重下。
-
-        关键：本地路径模型**绝不删**——那是用户自己的文件，删了就是数据丢失；
-        只清 HF cache 布局 <model_dir>/models--{org}--{name}/（含历史 modelscope 目录）。
-        """
-        try:
-            target = resolve_whisper_model(model_size)
-        except Exception:
-            target = model_size
-        if is_local_target(target):
-            logger.warning(
-                f"模型 {model_size} 指向本地路径 {target}，加载失败不清理用户文件，请检查该目录是否完整"
-            )
-            return
-        candidates = [
-            Path(model_dir) / hf_cache_dirname(target),       # HF cache: models--org--name
-            Path(model_dir) / f"whisper-{model_size}",        # 历史 modelscope 目录，顺手清掉
-        ]
-        for path in candidates:
-            if path.exists():
-                logger.info(f"清理损坏 cache: {path}")
-                shutil.rmtree(path, ignore_errors=True)
-    @staticmethod
-    def is_torch_installed() -> bool:
-        try:
-            import torch
-            return True
-        except ImportError:
-            return False
+        local = ensure_model(target, model_dir, model_size, progress_callback)
+        if progress_callback:
+            progress_callback(substage="loading_model", message="模型文件已就绪，正在加载到计算设备", model=model_size,
+                requested_device=device, percent=None, downloaded_bytes=None, total_bytes=None)
+        self.model = WhisperModel(model_size_or_path=local, device=self.device,
+            compute_type=self.compute_type, local_files_only=True)
 
     @staticmethod
     def is_cuda() -> bool:
         try:
-            if is_cuda_available():
-                print(" CUDA 可用，使用 GPU")
-                return True
-            elif is_torch_installed():
-                print(" 只装了 torch，但没有 CUDA，用 CPU")
-                return False
-            else:
-                print(" 还没有安装 torch，请先安装")
-                return False
-
-        except ImportError:
+            import ctranslate2
+            return ctranslate2.get_cuda_device_count() > 0
+        except (ImportError, RuntimeError):
             return False
 
     @timeit
-    def transcript(self, file_path: str) -> TranscriptResult:
+    def transcript(self, file_path: str, progress_callback=None) -> TranscriptResult:
         try:
 
-            segments_raw, info = self.model.transcribe(file_path)
+            from app.services.terminology import terms
+            hints='、'.join(terms())[:200]
+            segments_raw, info = self.model.transcribe(file_path, language="zh", vad_filter=True,
+                initial_prompt="数码讨论可能涉及以下专有名词，仅在音频出现时使用："+hints, hotwords=hints)
 
+            import time
+            duration = float(info.duration or 0)
+            last_report = 0.0
+            def report(processed, finished=False):
+                if progress_callback:
+                    progress_callback(substage="transcribing", message="正在识别音频" if not finished else "转录完成，正在保存文字",
+                        device=self.device, model=self.model_size, compute_type=self.compute_type,
+                        processed_seconds=processed, total_seconds=duration,
+                        percent=(100.0 if finished else min(99.9, processed / duration * 100)) if duration else None)
+            report(0)
             segments = []
             full_text = ""
 
             for seg in segments_raw:
+                if time.monotonic() - last_report >= 1:
+                    report(min(float(seg.end), duration) if duration else float(seg.end))
+                    last_report = time.monotonic()
                 text = seg.text.strip()
                 full_text += text + " "
                 segments.append(TranscriptSegment(
@@ -137,21 +102,16 @@ class WhisperTranscriber(Transcriber):
                     text=text
                 ))
 
+            report(duration, finished=True)
             result= TranscriptResult(
                 language=info.language,
                 full_text=full_text.strip(),
                 segments=segments,
-                raw=info
+                raw=None
             )
             # self.on_finish(file_path, result)
             return result
         except Exception as e:
-            print(f"转写失败：{e}")
+            raise RuntimeError(f"转写失败：{e}") from e
 
-
-    def on_finish(self,video_path:str,result: TranscriptResult)->None:
-        print("转写完成")
-        transcription_finished.send({
-            "file_path": video_path,
-        })
 
