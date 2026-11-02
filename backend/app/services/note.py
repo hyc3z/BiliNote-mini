@@ -56,6 +56,10 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+from app.services.task_serial_executor import serial_transcription
+
+from app.services.terminology import with_video_terms
+
 class NoteGenerator:
     """
     NoteGenerator 用于执行视频/音频下载、转写、GPT 生成笔记、插入截图/链接、
@@ -76,6 +80,7 @@ class NoteGenerator:
 
     # ---------------- 公有方法 ----------------
 
+    @with_video_terms
     def generate(
         self,
         video_url: Union[str, HttpUrl],
@@ -539,6 +544,7 @@ class NoteGenerator:
             status_phase=status_phase,
         )
 
+    @serial_transcription
     def _transcribe_audio(
         self,
         audio_file: str,

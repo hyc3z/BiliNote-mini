@@ -72,10 +72,10 @@ class WhisperTranscriber(Transcriber):
     def transcript(self, file_path: str, progress_callback=None) -> TranscriptResult:
         try:
 
-            from app.services.terminology import terms
-            hints='、'.join(terms())[:200]
+            from app.services.terminology import scoped_terms
+            hints='、'.join(scoped_terms())[:200]
             segments_raw, info = self.model.transcribe(file_path, language="zh", vad_filter=True,
-                initial_prompt="数码讨论可能涉及以下专有名词，仅在音频出现时使用："+hints, hotwords=hints)
+                initial_prompt=("可能涉及以下专有名词，仅在音频出现时使用："+hints) if hints else None, hotwords=hints or None)
 
             import time
             duration = float(info.duration or 0)

@@ -16,11 +16,11 @@ class LibraryTests(unittest.TestCase):
         self.folder=Path(self.temp.name)
         self.env=patch.dict(os.environ,{'MINI_LIBRARY_DB':str(self.folder/'library.sqlite3')});self.env.start();self.addCleanup(self.env.stop)
         self.id=str(uuid.uuid4())
-        self.payload={'markdown':'显卡性能观点','transcript':{'full_text':'能效测试 RTX 5070 100%','segments':[]},'audio_meta':{'title':'极客湾直播','video_id':'BVexample_p2'}}
+        self.payload={'markdown':'显卡性能观点','transcript':{'full_text':'能效测试 RTX 5070 100%','segments':[]},'audio_meta':{'title':'极客湾直播','video_id':'BVexample_p2','raw_info':{'owner':{'name':'测试UP'}}}}
 
     def test_search_title_summary_transcript_and_restore_payload(self):
         library.save(self.id,self.payload)
-        for query in ('极客湾','性能','5070','100%'):
+        for query in ('极客湾','性能','5070','100%','BVexample','测试UP'):
             self.assertEqual(library.search(query)[0]['task_id'],self.id)
         self.assertEqual(library.get(self.id),self.payload)
         self.assertEqual(library.search('_'),[])

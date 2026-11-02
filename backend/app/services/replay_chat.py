@@ -164,9 +164,15 @@ def enqueue(bvids, start=True):
     all_parts = [part for bvid in dict.fromkeys(bvids) for part in parts(bvid)]
     if any(part.get("uploader_id",UPLOADER) != UPLOADER for part in all_parts):
         raise ValueError("回放不属于已指定的 UP 主，请先核对来源")
-    if len(all_parts)>60:
-        raise ValueError("一次最多提交 60 个分 P，请缩小范围")
-    selected = None
+    return enqueue_parts(all_parts, start=start)
+
+
+def enqueue_parts(all_parts, model=None, start=True):
+    """Shared durable queue for explicitly selected web parts and chat replays."""
+    all_parts = list({(p['bvid'], p['cid']): p for p in all_parts}.values())
+    if not all_parts or len(all_parts)>60:
+        raise ValueError("请选择 1–60 个视频分 P")
+    selected = model
     result = []
     with jobs_db() as db:
         for part in all_parts:

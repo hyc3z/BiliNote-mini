@@ -389,3 +389,36 @@ def correct_terminology(task_id:str,data:CorrectionRequest):
         from app.services.terminology import correct
         return R.success(data=correct(task_id,data.old,data.new,data.apply))
     except ValueError as exc:raise HTTPException(422,str(exc))
+
+
+class SelectionRequest(BaseModel):
+    video_url: str
+
+class BatchRequest(SelectionRequest):
+    keys: list[str]
+    provider_id: str
+    model_name: str
+
+@router.post('/video_selection')
+def video_selection(data: SelectionRequest):
+    try:
+        from app.services.video_selection import inspect
+        return R.success(data=inspect(data.video_url))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+    except Exception as exc:
+        raise HTTPException(502, str(exc))
+
+@router.post('/prepare_selection')
+def prepare_selection(data: BatchRequest):
+    try:
+        from app.db.model_dao import get_all_models
+        selected=next((m for m in get_all_models() if str(m['provider_id'])==data.provider_id and m['model_name']==data.model_name), None)
+        if not selected:
+            raise ValueError('请选择已启用的总结模型')
+        from app.services.video_selection import prepare
+        return R.success(data=prepare(data.video_url, data.keys, selected))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+    except Exception as exc:
+        raise HTTPException(502, str(exc))

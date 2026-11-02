@@ -7,7 +7,11 @@ export default function MiniSettings() {
   const [form, setForm] = useState({ base_url: '', api_key: '', model_name: '', cookie: '', whisper_model_size: 'small', device: 'cpu' })
   const [id, setId] = useState('')
   const [terms,setTerms]=useState('')
-  useEffect(()=>{request.get('/terminology').then((data:any)=>setTerms(data.terms.join('、'))).catch(()=>{})},[])
+  const [tagName,setTagName]=useState('数码')
+  const [tagLists,setTagLists]=useState<Record<string,string[]>>({})
+  useEffect(()=>{request.get('/tag_terms').then((data:any)=>{setTagLists(data.tags);setTerms((data.tags['数码']||[]).join('、'))}).catch(()=>setMessage('标签词表读取失败，请重启后端后重试'))},[])
+  async function saveTag(){try{const data:any=await request.post('/tag_terms',{tag:tagName,terms:terms.split(/[、,，\n]+/).map(t=>t.trim()).filter(Boolean)});setTagLists(data.tags);setMessage('标签词表已保存；仅用于绑定此标签的视频后续转录。')}catch(e:any){setMessage(e?.detail||e?.msg||'词表保存失败')}}
+
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [ready, setReady] = useState(false)
@@ -33,7 +37,6 @@ export default function MiniSettings() {
       await request.post('/transcriber_config', { transcriber_type: 'fast-whisper', whisper_model_size: form.whisper_model_size })
       await request.post('/update_downloader_cookie', { platform: 'bilibili', cookie: form.cookie })
       await request.post('/mini_preferences', { device: form.device })
-      await request.post('/terminology',{terms:terms.split(/[、,，\n]+/).map(t=>t.trim()).filter(Boolean)})
       setForm(f => ({ ...f, api_key: '' })); setMessage('设置已保存。返回首页即可开始整理。')
     } catch (e: any) { setMessage(e?.msg || '保存失败，请检查填写内容。') }
     finally { setBusy(false) }
@@ -46,7 +49,7 @@ export default function MiniSettings() {
       <label className="block">本地转录模型<select className="ml-4 rounded border p-2" value={form.whisper_model_size} onChange={e => field('whisper_model_size', e.target.value)}>{['tiny', 'base', 'small', 'medium', 'large-v3', 'large-v3-turbo'].map(m => <option key={m}>{m}</option>)}</select></label>
       <label className="block">转录设备<select className="ml-4 rounded border p-2" value={form.device} onChange={e => field('device', e.target.value)}><option value="cpu">CPU</option><option value="cuda">NVIDIA GPU（需要 CUDA 运行库）</option></select></label>
       <p className="text-sm text-neutral-500">只有无字幕任务才会加载转录模型，首次使用会下载模型。</p>
-<label className="block">转录领域词表（合计最多 200 字符）<textarea className="mt-2 w-full rounded border p-3" rows={3} value={terms} onChange={e=>setTerms(e.target.value)} /><span>用顿号分隔；只提示识别，不自动改写原文。</span></label>
+<section className="tag-dictionary"><h2>标签与领域词表</h2><p>按内容类型维护词表。旧词表已保留为“数码”，不会自动用于所有视频。</p><label>选择标签 <select value={tagName} onChange={e=>{setTagName(e.target.value);setTerms((tagLists[e.target.value]||[]).join('、'))}}>{Array.from(new Set([...Object.keys(tagLists),tagName])).map(t=><option key={t}>{t}</option>)}</select></label><label>新建标签名称<input maxLength={30} value={tagName} onChange={e=>{setTagName(e.target.value);setTerms((tagLists[e.target.value]||[]).join('、'))}}/></label><label>专有名词（最多 200 字符）<textarea rows={3} value={terms} onChange={e=>setTerms(e.target.value)}/></label><p>用顿号或逗号分隔；视频可绑定多个标签。只提示识别，不自动改写已保存的原文。</p><button type="button" onClick={saveTag}>保存此标签词表</button></section>
       <label className="block">B 站 Cookie（可选）<textarea rows={3} className="mt-2 w-full rounded border p-3" value={form.cookie} onChange={e => field('cookie', e.target.value)} /></label>
       <p className="text-sm text-neutral-500">配置保存在本机。音频本地转录；文字总结发送到你指定的模型接口。</p>
       <button disabled={!ready || busy} className="rounded bg-neutral-900 px-5 py-3 text-white disabled:opacity-50">{busy ? '保存中…' : '保存'}</button>

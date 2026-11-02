@@ -44,7 +44,7 @@ def migrate(folder):
 def search(query=""):
     with database() as db:
         term = "%" + query.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%"
-        rows = db.execute("SELECT task_id,title,source,saved_at FROM notes WHERE title LIKE ? ESCAPE '!' OR markdown LIKE ? ESCAPE '!' OR transcript LIKE ? ESCAPE '!' ORDER BY saved_at DESC,task_id DESC LIMIT 300", (term,term,term)).fetchall()
+        rows = db.execute("SELECT task_id,title,source,saved_at,json_extract(payload, '$.audio_meta.duration') AS duration FROM notes WHERE title LIKE ? ESCAPE '!' OR markdown LIKE ? ESCAPE '!' OR source LIKE ? ESCAPE '!' OR COALESCE(json_extract(payload, '$.audio_meta.raw_info.owner.name'), '') LIKE ? ESCAPE '!' OR transcript LIKE ? ESCAPE '!' ORDER BY saved_at DESC,task_id DESC", (term,term,term,term,term)).fetchall()
         return [dict(row) for row in rows]
 
 def get(task_id):

@@ -37,6 +37,40 @@ class TestTaskSerialExecutor(unittest.TestCase):
 
         self.assertEqual(state["peak_active"], 1)
 
+    def test_parallel_tasks_overlap(self):
+        executor = task_serial_executor.ConcurrentTaskExecutor(max_workers=2)
+        barrier = threading.Barrier(2)
+        def work():
+            barrier.wait(timeout=3)
+            return True
+        from concurrent.futures import ThreadPoolExecutor
+        try:
+            with ThreadPoolExecutor(max_workers=2) as callers:
+                futures=[callers.submit(executor.run,work) for _ in range(2)]
+                self.assertTrue(all(f.result(timeout=5) for f in futures))
+        finally:
+            executor.shutdown()
+
+    def test_transcription_is_serial_and_releases_after_error(self):
+        state={'active':0,'peak':0}
+        lock=threading.Lock()
+        @task_serial_executor.serial_transcription
+        def work(fail=False):
+            with lock:
+                state['active']+=1
+                state['peak']=max(state['peak'],state['active'])
+            try:
+                time.sleep(.03)
+                if fail:raise ValueError('expected')
+            finally:
+                with lock:state['active']-=1
+        with self.assertRaises(ValueError):work(True)
+        threads=[threading.Thread(target=work) for _ in range(3)]
+        for t in threads:t.start()
+        for t in threads:t.join(timeout=3)
+        self.assertTrue(all(not t.is_alive() for t in threads))
+        self.assertEqual(state['peak'],1)
+
 
 if __name__ == "__main__":
     unittest.main()
