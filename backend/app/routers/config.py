@@ -63,3 +63,28 @@ def update_terms(data:TermsRequest):
     try:save_terms(data.terms)
     except ValueError as exc:raise HTTPException(422,str(exc))
     return R.success()
+
+class TagTermsRequest(BaseModel):
+    tag:str
+    terms:list[str]
+
+class VideoTagsRequest(BaseModel):
+    bvid:str
+    tags:list[str]
+
+@router.get('/tag_terms')
+def get_tag_terms():
+    from app.services.terminology import tag_config
+    return R.success(data=tag_config())
+
+@router.post('/tag_terms')
+def put_tag_terms(data:TagTermsRequest):
+    from app.services.terminology import update_tag_config
+    try:return R.success(data=update_tag_config(tag=data.tag,items=data.terms))
+    except ValueError as exc:raise HTTPException(422,str(exc))
+
+@router.post('/video_tags')
+def put_video_tags(data:VideoTagsRequest):
+    from app.services.terminology import update_tag_config
+    try:return R.success(data=update_tag_config(bvid=data.bvid,tags=data.tags))
+    except ValueError as exc:raise HTTPException(422,str(exc))

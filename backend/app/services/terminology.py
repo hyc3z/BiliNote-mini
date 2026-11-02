@@ -56,3 +56,47 @@ def correct(task_id,old,new,apply=False):
             result=file.parent/f'{task_id}.json'
             result.write_text(json.dumps(note,ensure_ascii=False),encoding='utf-8')
     return {'matches':len(changes),'examples':changes[:5],'transcript':corrected if apply else None,'summary_stale':bool(apply and changes)}
+
+# Tag dictionaries are opt-in per BV; untagged videos receive no domain hints.
+from contextvars import ContextVar
+from functools import wraps
+from filelock import FileLock
+active_source = ContextVar('terminology_source', default='')
+
+def tag_config():
+    try:
+        return json.loads(Path('config/tag_terms.json').read_text(encoding='utf-8'))
+    except FileNotFoundError:
+        return {'tags':{'数码':terms()},'videos':{}}
+
+def update_tag_config(tag=None, items=None, bvid=None, tags=None):
+    folder=Path('config');folder.mkdir(exist_ok=True)
+    with FileLock(str(folder/'tag_terms.lock')):
+        data=tag_config()
+        if tag is not None:
+            tag=tag.strip()
+            if not tag or len(tag)>30:raise ValueError('标签名称须为 1–30 字符')
+            clean=list(dict.fromkeys(w.strip() for w in items if w.strip()))
+            if len('、'.join(clean))>200:raise ValueError('每个标签词表最多 200 字符')
+            data['tags'][tag]=clean
+        if bvid is not None:
+            if not re.fullmatch(r'BV[0-9A-Za-z]{10}',bvid):raise ValueError('无效 BV 号')
+            if any(t not in data['tags'] for t in tags):raise ValueError('标签不存在')
+            data['videos'][bvid]=list(dict.fromkeys(tags))
+        target=folder/'tag_terms.json';temp=target.with_suffix('.tmp')
+        temp.write_text(json.dumps(data,ensure_ascii=False),encoding='utf-8');temp.replace(target)
+    return data
+
+def scoped_terms():
+    match=re.search(r'BV[0-9A-Za-z]{10}',active_source.get())
+    if not match:return []
+    data=tag_config()
+    return list(dict.fromkeys(w for tag in data['videos'].get(match[0],[]) for w in data['tags'].get(tag,[])))
+
+def with_video_terms(fn):
+    @wraps(fn)
+    def scoped(self,*args,**kwargs):
+        token=active_source.set(str(kwargs.get('video_url',args[0] if args else '')))
+        try:return fn(self,*args,**kwargs)
+        finally:active_source.reset(token)
+    return scoped
