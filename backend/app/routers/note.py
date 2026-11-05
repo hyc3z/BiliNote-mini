@@ -422,3 +422,15 @@ def prepare_selection(data: BatchRequest):
         raise HTTPException(422, str(exc))
     except Exception as exc:
         raise HTTPException(502, str(exc))
+
+
+@router.get('/tasks/{task_id}/frame/{seconds}')
+def timestamp_frame(task_id: str, seconds: int):
+    from fastapi.responses import FileResponse
+    try:
+        from app.services.video_frames import frame
+        return FileResponse(frame(task_id, seconds), media_type='image/jpeg', headers={'Cache-Control':'private, max-age=86400'})
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+    except Exception:
+        raise HTTPException(502, '截图读取失败，请稍后刷新重试')
