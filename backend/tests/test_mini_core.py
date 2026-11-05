@@ -51,6 +51,7 @@ class MiniCoreTests(unittest.TestCase):
             TranscriptResult=transcript_types.TranscriptResult,
             AudioDownloadResult=audio_types.AudioDownloadResult, NoteResult=Result,
             get_preferences=lambda: {"device": "cpu"},
+            with_video_terms=lambda fn: fn, serial_transcription=lambda fn: fn,
             TaskStatus=statuses.TaskStatus, DownloadQuality=types.SimpleNamespace(medium='medium'),
             normalize_video_url=lambda url: url.split('&tracking=')[0],
             resolve_bilibili_short_url=lambda url: url,
@@ -135,3 +136,5 @@ class MiniCoreTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+

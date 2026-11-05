@@ -1,7 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 
-export default function SummaryReader({markdown}:{markdown:string}) {
+function TimestampImage({src,alt}:{src?:string;alt?:string}) {
+  const [failed,setFailed]=useState(false)
+  const [attempt,setAttempt]=useState(0)
+  return <span className="mini-frame">{failed?<button onClick={()=>{setFailed(false);setAttempt(n=>n+1)}}>截图读取失败，点击重试</button>:<img loading="lazy" src={src+(attempt?'?retry='+attempt:'')} alt={alt||'原片画面'} onError={()=>setFailed(true)}/>}<small>{alt}</small></span>
+}
+export default function SummaryReader({markdown,taskId}:{markdown:string;taskId:string}) {
+  const illustrated=markdown.split('\n').map(line=>{
+    const matches=[...line.matchAll(/\[[^\]]*\]\((https?:\/\/[^\s)]+[?&]t=(\d+)[^\s)]*)\)/g)]
+    const frames=[...new Set(matches.map(m=>m[2]))]
+    return line+frames.map(seconds=>'\n\n![原片 '+Math.floor(Number(seconds)/60)+":"+String(Number(seconds)%60).padStart(2,'0')+' 的画面]('+(import.meta.env.VITE_API_BASE_URL||'/api')+'/tasks/'+taskId+'/frame/'+seconds+')\n').join('')
+  }).join('\n')
+
   const article=useRef<HTMLElement>(null)
   const navigation=useRef<HTMLElement>(null)
   const animation=useRef(0)
@@ -68,6 +79,6 @@ export default function SummaryReader({markdown}:{markdown:string}) {
     animation.current=requestAnimationFrame(tick)
 
   }
-  return <div className="summary-workspace"><article className="mini-markdown" ref={article}><ReactMarkdown>{markdown}</ReactMarkdown></article>{headings.length>0&&<aside className={'summary-outline '+(expanded?'expanded':'')} aria-label="观点目录"><button className="outline-toggle" aria-expanded={expanded} onClick={()=>setExpanded(!expanded)}>观点目录 <span>{headings.length}</span></button><div className="outline-content"><p>本篇大纲 <span>{headings.length} 个标题</span></p><input aria-label="搜索观点目录" placeholder="查找观点…" value={query} onChange={e=>setQuery(e.target.value)}/><nav ref={navigation}>{headings.filter(h=>h.title.toLowerCase().includes(query.toLowerCase())).map(h=><button key={h.id} className={active===h.id?'active':''} aria-current={active===h.id?'location':undefined} style={{paddingLeft:12+Math.max(0,h.level-2)*10}} onClick={()=>jump(h.id)}>{h.title}</button>)}</nav>{!headings.some(h=>h.title.toLowerCase().includes(query.toLowerCase()))&&<small>没有匹配的标题</small>}</div></aside>}</div>
+  return <div className="summary-workspace"><article className="mini-markdown" ref={article}><ReactMarkdown components={{img:({src,alt})=><TimestampImage src={src} alt={alt}/>}}>{illustrated}</ReactMarkdown></article>{headings.length>0&&<aside className={'summary-outline '+(expanded?'expanded':'')} aria-label="观点目录"><button className="outline-toggle" aria-expanded={expanded} onClick={()=>setExpanded(!expanded)}>观点目录 <span>{headings.length}</span></button><div className="outline-content"><p>本篇大纲 <span>{headings.length} 个标题</span></p><input aria-label="搜索观点目录" placeholder="查找观点…" value={query} onChange={e=>setQuery(e.target.value)}/><nav ref={navigation}>{headings.filter(h=>h.title.toLowerCase().includes(query.toLowerCase())).map(h=><button key={h.id} className={active===h.id?'active':''} aria-current={active===h.id?'location':undefined} style={{paddingLeft:12+Math.max(0,h.level-2)*10}} onClick={()=>jump(h.id)}>{h.title}</button>)}</nav>{!headings.some(h=>h.title.toLowerCase().includes(query.toLowerCase()))&&<small>没有匹配的标题</small>}</div></aside>}</div>
 }
 
