@@ -22,15 +22,33 @@ def frame(task_id, seconds):
     target=folder/f'{seconds}.jpg'
     with FileLock(str(target)+'.lock',timeout=90):
         if target.is_file():return target
-        from app.downloaders.bilibili_downloader import BilibiliDownloader
-        downloader=BilibiliDownloader() if audio.get('platform','bilibili')=='bilibili' else None
-        options={'quiet':True,'no_warnings':True,'noplaylist':True,'format':'worstvideo[ext=mp4]/worst[ext=mp4]/worst','socket_timeout':15}
-        if downloader and downloader._cookiefile:options['cookiefile']=downloader._cookiefile
-        source=(audio.get('raw_info') or {}).get('webpage_url') if audio.get('platform') in ('youtube','instagram') else 'https://www.bilibili.com/video/'+audio['video_id'].replace('_p','?p=')
-        with yt_dlp.YoutubeDL(options) as ydl:
-            info=ydl.extract_info(source,download=False)
-        headers={**info.get('http_headers',{}),'Referer':'https://www.bilibili.com/'}
-        with av.open(info['url'],options={'headers':''.join(f'{k}: {v}\r\n' for k,v in headers.items())},timeout=20) as container:
+        cached=list(folder.glob('source.*'))
+        local=str(cached[0]) if cached else audio.get('video_path') or audio.get('file_path')
+        source=None
+        if local and Path(local).is_file():
+            try:
+                with av.open(local) as probe:
+                    if probe.streams.video:source=local
+            except av.error.FFmpegError:pass
+        headers={}
+        if source is None:
+            from app.downloaders.bilibili_downloader import BilibiliDownloader
+            downloader=BilibiliDownloader() if audio.get('platform','bilibili')=='bilibili' else None
+            options={'quiet':True,'no_warnings':True,'noplaylist':True,'format':'worstvideo[ext=mp4]/worst[ext=mp4]/worst','socket_timeout':15}
+            if downloader and downloader._cookiefile:options['cookiefile']=downloader._cookiefile
+            webpage=(audio.get('raw_info') or {}).get('webpage_url') if audio.get('platform') in ('youtube','instagram') else 'https://www.bilibili.com/video/'+audio['video_id'].replace('_p','?p=')
+            with yt_dlp.YoutubeDL(options) as ydl:
+                info=ydl.extract_info(webpage,download=False)
+            if audio.get('platform')=='instagram':
+                options['outtmpl']=str(folder/'source.%(ext)s')
+                with FileLock(str(folder/'source.lock'),timeout=90), yt_dlp.YoutubeDL(options) as ydl:
+                    info=ydl.extract_info(webpage,download=True)
+                    source=ydl.prepare_filename(info)
+                headers={}
+            else:
+                headers=info.get('http_headers',{})
+            if source is None:source=info['url']
+        with av.open(source,options={'headers':''.join(f'{k}: {v}\r\n' for k,v in headers.items())} if headers else {},timeout=20) as container:
             stream=container.streams.video[0]
             container.seek(int(seconds/stream.time_base),stream=stream,backward=True)
             chosen=None
@@ -44,3 +62,5 @@ def frame(task_id, seconds):
             content=b''.join(bytes(p) for p in encoder.encode(image))+b''.join(bytes(p) for p in encoder.encode(None))
             temp=target.with_suffix('.tmp');temp.write_bytes(content);temp.replace(target)
         return target
+
+
