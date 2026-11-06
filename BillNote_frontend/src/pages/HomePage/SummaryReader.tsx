@@ -6,8 +6,32 @@ function TimestampImage({src,alt}:{src?:string;alt?:string}) {
   const [attempt,setAttempt]=useState(0)
   return <span className="mini-frame">{failed?<button onClick={()=>{setFailed(false);setAttempt(n=>n+1)}}>截图读取失败，点击重试</button>:<img loading="lazy" src={src+(attempt?'?retry='+attempt:'')} alt={alt||'原片画面'} onError={()=>setFailed(true)}/>}<small>{alt}</small></span>
 }
-export default function SummaryReader({markdown,taskId}:{markdown:string;taskId:string}) {
-  const illustrated=markdown.split('\n').map(line=>{
+interface Segment {start:number;end:number;text:string}
+const clock=(seconds:number)=>[Math.floor(seconds/3600),Math.floor(seconds/60)%60,Math.floor(seconds)%60].map(n=>String(n).padStart(2,'0')).join(':')
+function originalAt(start:number,stamps:number[],segments:Segment[]){
+  const next=stamps.find(t=>t>start)??Infinity
+  return segments.filter(s=>s.end>start&&s.start<next)
+}
+export default function SummaryReader({markdown,taskId,segments=[]}:{markdown:string;taskId:string;segments?:Segment[]}) {
+  const timestamps=(line:string)=>[...line.matchAll(/\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g)].flatMap(m=>{
+    const query=m[2].match(/[?&]t=(\d+)/)
+    if(query)return [Number(query[1])]
+    const label=m[1].match(/原片\s*@\s*(\d+):(\d{2})(?::(\d{2}))?/)
+    return label?[label[3]?Number(label[1])*3600+Number(label[2])*60+Number(label[3]):Number(label[1])*60+Number(label[2])]:[]
+  })
+  const stamps=[...new Set(timestamps(markdown))].sort((a,b)=>a-b)
+  const lines=markdown.split('\n')
+  const inserts=new Map<number,number[]>()
+  lines.forEach((line,index)=>{
+    const times=timestamps(line)
+    if(!times.length)return
+    let end=index+1
+    while(end<lines.length&&!/^#{1,6}\s/.test(lines[end])&&!timestamps(lines[end]).length)end++
+    inserts.set(end-1,[...(inserts.get(end-1)||[]),...times])
+  })
+  const paired=lines.map((line,index)=>line+(inserts.get(index)||[]).map(t=>'\n\n![对应原文](/__transcript__/'+t+')\n').join('')).join('\n')
+
+  const illustrated=paired.split('\n').map(line=>{
     const matches=[...line.matchAll(/\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g)]
     const frames=[...new Set(matches.flatMap(m=>{
       const query=m[2].match(/[?&]t=(\d+)/)
@@ -85,6 +109,12 @@ export default function SummaryReader({markdown,taskId}:{markdown:string;taskId:
     animation.current=requestAnimationFrame(tick)
 
   }
-  return <div className="summary-workspace"><article className="mini-markdown" ref={article}><ReactMarkdown components={{img:({src,alt})=><TimestampImage src={src} alt={alt}/>}}>{illustrated}</ReactMarkdown></article>{headings.length>0&&<aside className={'summary-outline '+(expanded?'expanded':'')} aria-label="观点目录"><button className="outline-toggle" aria-expanded={expanded} onClick={()=>setExpanded(!expanded)}>观点目录 <span>{headings.length}</span></button><div className="outline-content"><p>本篇大纲 <span>{headings.length} 个标题</span></p><input aria-label="搜索观点目录" placeholder="查找观点…" value={query} onChange={e=>setQuery(e.target.value)}/><nav ref={navigation}>{headings.filter(h=>h.title.toLowerCase().includes(query.toLowerCase())).map(h=><button key={h.id} className={active===h.id?'active':''} aria-current={active===h.id?'location':undefined} style={{paddingLeft:12+Math.max(0,h.level-2)*10}} onClick={()=>jump(h.id)}>{h.title}</button>)}</nav>{!headings.some(h=>h.title.toLowerCase().includes(query.toLowerCase()))&&<small>没有匹配的标题</small>}</div></aside>}</div>
+  return <div className="summary-workspace"><article className="mini-markdown" ref={article}><ReactMarkdown components={{img:({src,alt})=>{
+    if(src?.startsWith('/__transcript__/')){
+      const start=Number(src.split('/').pop()),original=originalAt(start,stamps,segments)
+      return <span className="paired-original"><span className="paired-original-label">原始文字稿 · {clock(start)}{original.length?' — '+clock(original[original.length-1].end):''}</span>{original.length?original.map((s,i)=><span className="paired-original-line" key={i}><small>{clock(s.start)}</small><em>{s.text}</em></span>):<em>此时间范围暂无匹配原文。</em>}</span>
+    }
+    return <TimestampImage src={src} alt={alt}/>
+  }}}>{illustrated}</ReactMarkdown></article>{headings.length>0&&<aside className={'summary-outline '+(expanded?'expanded':'')} aria-label="观点目录"><button className="outline-toggle" aria-expanded={expanded} onClick={()=>setExpanded(!expanded)}>观点目录 <span>{headings.length}</span></button><div className="outline-content"><p>本篇大纲 <span>{headings.length} 个标题</span></p><input aria-label="搜索观点目录" placeholder="查找观点…" value={query} onChange={e=>setQuery(e.target.value)}/><nav ref={navigation}>{headings.filter(h=>h.title.toLowerCase().includes(query.toLowerCase())).map(h=><button key={h.id} className={active===h.id?'active':''} aria-current={active===h.id?'location':undefined} style={{paddingLeft:12+Math.max(0,h.level-2)*10}} onClick={()=>jump(h.id)}>{h.title}</button>)}</nav>{!headings.some(h=>h.title.toLowerCase().includes(query.toLowerCase()))&&<small>没有匹配的标题</small>}</div></aside>}</div>
 }
 
