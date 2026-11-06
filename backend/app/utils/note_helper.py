@@ -47,6 +47,8 @@ def replace_content_markers(markdown: str, video_id: str, platform: str = 'bilib
             url = f"https://www.bilibili.com/video/{target}{separator}t={seconds}"
         elif platform == 'youtube':
             url = f"https://www.youtube.com/watch?v={video_id}&t={seconds}s"
+        elif platform == 'instagram':
+            url = f'https://www.instagram.com/reel/{video_id}/'
         else:
             return f"({mm}:{ss})"
         return f"[原片 @ {mm}:{ss}]({url})"

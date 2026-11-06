@@ -23,10 +23,10 @@ def frame(task_id, seconds):
     with FileLock(str(target)+'.lock',timeout=90):
         if target.is_file():return target
         from app.downloaders.bilibili_downloader import BilibiliDownloader
-        downloader=BilibiliDownloader()
+        downloader=BilibiliDownloader() if audio.get('platform','bilibili')=='bilibili' else None
         options={'quiet':True,'no_warnings':True,'noplaylist':True,'format':'worstvideo[ext=mp4]/worst[ext=mp4]/worst','socket_timeout':15}
-        if downloader._cookiefile:options['cookiefile']=downloader._cookiefile
-        source='https://www.bilibili.com/video/'+audio['video_id'].replace('_p','?p=')
+        if downloader and downloader._cookiefile:options['cookiefile']=downloader._cookiefile
+        source=(audio.get('raw_info') or {}).get('webpage_url') if audio.get('platform') in ('youtube','instagram') else 'https://www.bilibili.com/video/'+audio['video_id'].replace('_p','?p=')
         with yt_dlp.YoutubeDL(options) as ydl:
             info=ydl.extract_info(source,download=False)
         headers={**info.get('http_headers',{}),'Referer':'https://www.bilibili.com/'}

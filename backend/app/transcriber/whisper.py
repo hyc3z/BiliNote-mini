@@ -74,7 +74,7 @@ class WhisperTranscriber(Transcriber):
 
             from app.services.terminology import scoped_terms
             hints='、'.join(scoped_terms())[:200]
-            segments_raw, info = self.model.transcribe(file_path, language="zh", vad_filter=True,
+            segments_raw, info = self.model.transcribe(file_path, language=None, vad_filter=True,
                 initial_prompt=("可能涉及以下专有名词，仅在音频出现时使用："+hints) if hints else None, hotwords=hints or None)
 
             import time

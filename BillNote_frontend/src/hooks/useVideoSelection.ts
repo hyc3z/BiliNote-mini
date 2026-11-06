@@ -11,6 +11,7 @@ export function useVideoSelection(url: string) {
   const input=url.trim()
   useEffect(()=>{
     setResult(null);setKeys([]);setError('');setLoading(false)
+    if(/^https?:\/\/(?:www\.|m\.)?(?:youtube\.com|youtu\.be|instagram\.com)\//i.test(input))return
     if(!/BV[0-9a-zA-Z]{10}(?![0-9a-zA-Z])/.test(input) && !/^https:\/\/b23\.tv\//.test(input)){if(attempt>0 && input)setError('请输入完整的 BV 号或 B 站视频链接');return}
     let current=true
     const controller=new AbortController()
