@@ -63,8 +63,8 @@ class VideoRequest(BaseModel):
         if isinstance(data, dict) and data.get("platform") == "bilibili" and data.get("video_url"):
             data["video_url"] = normalize_video_url(str(data["video_url"]))
         if isinstance(data, dict):
-            if data.get("platform") != "bilibili":
-                raise ValueError("精简版仅支持 B 站视频")
+            from app.utils.video_source import detect
+            data["platform"] = detect(str(data.get("video_url", "")))
             data.update(screenshot=False, video_understanding=False, grid_size=[],
                         format=["link"], link=True, style="minimal")
         return data
@@ -75,7 +75,8 @@ class VideoRequest(BaseModel):
         parsed = urlparse(url)
         if parsed.scheme in ("http", "https"):
             # 是网络链接，继续用原有平台校验
-            if not is_supported_video_url(url):
+            from app.utils.video_source import detect
+            if not detect(url):
                 raise NoteError(code=NoteErrorEnum.PLATFORM_NOT_SUPPORTED.code,
                                 message=NoteErrorEnum.PLATFORM_NOT_SUPPORTED.message)
 

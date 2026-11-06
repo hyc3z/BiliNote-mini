@@ -27,7 +27,7 @@ def save(task_id, payload):
         return
     audio = payload.get("audio_meta") or {}
     video_id = audio.get("video_id", "")
-    source = "https://www.bilibili.com/video/" + video_id.replace("_p", "?p=")
+    source = (audio.get("raw_info") or {}).get("webpage_url") if audio.get("platform") in ("youtube","instagram") else "https://www.bilibili.com/video/" + video_id.replace("_p", "?p=")
     with database() as db:
         if db.execute("SELECT 1 FROM removed WHERE task_id=?", (task_id,)).fetchone():
             return
