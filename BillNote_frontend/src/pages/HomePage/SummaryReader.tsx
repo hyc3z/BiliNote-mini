@@ -8,8 +8,14 @@ function TimestampImage({src,alt}:{src?:string;alt?:string}) {
 }
 export default function SummaryReader({markdown,taskId}:{markdown:string;taskId:string}) {
   const illustrated=markdown.split('\n').map(line=>{
-    const matches=[...line.matchAll(/\[[^\]]*\]\((https?:\/\/[^\s)]+[?&]t=(\d+)[^\s)]*)\)/g)]
-    const frames=[...new Set(matches.map(m=>m[2]))]
+    const matches=[...line.matchAll(/\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g)]
+    const frames=[...new Set(matches.flatMap(m=>{
+      const query=m[2].match(/[?&]t=(\d+)/)
+      if(query)return [query[1]]
+      const label=m[1].match(/原片\s*@\s*(\d+):(\d{2})(?::(\d{2}))?/)
+      if(!label)return []
+      return [String(label[3]?Number(label[1])*3600+Number(label[2])*60+Number(label[3]):Number(label[1])*60+Number(label[2]))]
+    }))]
     return line+frames.map(seconds=>'\n\n![原片 '+Math.floor(Number(seconds)/60)+":"+String(Number(seconds)%60).padStart(2,'0')+' 的画面]('+(import.meta.env.VITE_API_BASE_URL||'/api')+'/tasks/'+taskId+'/frame/'+seconds+')\n').join('')
   }).join('\n')
 
