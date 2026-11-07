@@ -50,7 +50,7 @@ export const useTaskPolling = (interval = 3000) => {
               updateTaskContent(task.id, { status, message: res.message, progress: res.progress, ...partial } as any)
               console.warn(`⚠️ 任务 ${task.id} 失败`)
             } else {
-              updateTaskContent(task.id, { status, message: res.message, progress: res.progress } as any)
+              updateTaskContent(task.id, { status, message: res.message, progress: res.progress, ...partial } as any)
             }
           }
         } catch (e) {
