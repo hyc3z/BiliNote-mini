@@ -16,15 +16,21 @@ export const useTaskPolling = (interval = 3000) => {
   }, [tasks])
 
   useEffect(() => {
+    let polling=false, cursor=0
     const timer = setInterval(async () => {
+      if(polling)return
+      polling=true
+      try {
       const pendingTasks = tasksRef.current.filter(
-        task => (task.status !== 'SUCCESS' && task.status !== 'FAILED') || (!task.transcript?.segments?.length && !finalCheckedRef.current.has(task.id))
+        task => task.status !== 'SUCCESS' && task.status !== 'FAILED'
       )
 
       // 无活跃任务时跳过轮询
       if (pendingTasks.length === 0) return
 
-      for (const task of pendingTasks) {
+      const selected=[...pendingTasks.slice(cursor),...pendingTasks.slice(0,cursor)].slice(0,30)
+      cursor=(cursor+30)%pendingTasks.length
+      for (const task of selected) {
         try {
           const res = await get_task_status(task.id, !task.transcript?.segments?.length)
           const partial: any = {}
@@ -58,6 +64,7 @@ export const useTaskPolling = (interval = 3000) => {
           // Keep the task active across temporary network failures.
         }
       }
+      } finally {polling=false}
     }, interval)
 
     return () => clearInterval(timer)
