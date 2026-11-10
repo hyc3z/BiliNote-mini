@@ -55,8 +55,8 @@ def inspect(video_url):
 
 
 def prepare(video_url, keys, model, start=True):
-    if not keys or len(keys)>60:
-        raise ValueError('请选择 1–60 个视频分 P')
+    if not keys:
+        raise ValueError('请至少选择一个视频分 P')
     selection=inspect(video_url)
     chosen=set(keys)
     available={p['key'] for p in selection['parts']}

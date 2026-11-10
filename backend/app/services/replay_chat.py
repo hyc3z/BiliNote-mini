@@ -170,8 +170,8 @@ def enqueue(bvids, start=True):
 def enqueue_parts(all_parts, model=None, start=True):
     """Shared durable queue for explicitly selected web parts and chat replays."""
     all_parts = list({(p['bvid'], p['cid']): p for p in all_parts}.values())
-    if not all_parts or len(all_parts)>60:
-        raise ValueError("请选择 1–60 个视频分 P")
+    if not all_parts:
+        raise ValueError("请至少选择一个视频分 P")
     selected = model
     result = []
     with jobs_db() as db:

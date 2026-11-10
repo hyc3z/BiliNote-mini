@@ -52,9 +52,19 @@ class VideoSelectionTests(unittest.TestCase):
             with self.assertRaises(ValueError):selection.prepare(BV,[f'{OTHER}:999'],{})
             enqueue.assert_not_called()
 
-    def test_empty_or_oversized_batch_rejected(self):
-        for keys in ([],list(map(str,range(61)))):
-            with self.assertRaises(ValueError):selection.prepare(BV,keys,{})
+    def test_empty_batch_rejected(self):
+        with self.assertRaises(ValueError):selection.prepare(BV,[],{})
+
+    def test_714_parts_can_enter_queue_without_starting_processing(self):
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ,{'MINI_CHAT_JOBS_DB':folder+'/jobs.sqlite3','MINI_LIBRARY_DB':folder+'/library.sqlite3','NOTE_OUTPUT_DIR':folder+'/out'}):
+            with patch.object(selection,'api',return_value=video(714)),patch.object(chat,'start_worker') as start:
+                keys=[f'{BV}:{101+i}' for i in range(714)]
+                result=selection.prepare(BV,keys,{'provider_id':'1','model_name':'test'},start=False)
+                repeated=selection.prepare(BV,keys,{'provider_id':'1','model_name':'test'},start=False)
+            self.assertEqual(len(result['parts']),714)
+            self.assertEqual([p['task_id'] for p in result['parts']],[p['task_id'] for p in repeated['parts']])
+            with chat.jobs_db() as db:self.assertEqual(db.execute('SELECT count(*) FROM jobs').fetchone()[0],714)
+            start.assert_not_called()
 
     def test_invalid_bv_does_not_call_remote_api(self):
         with patch.object(selection,'api') as api:
