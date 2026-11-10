@@ -152,6 +152,7 @@ class NoteGenerator:
                 logger.info(f"检测到转写缓存 ({transcript_cache_file})，尝试读取")
                 try:
                     data = json.loads(transcript_cache_file.read_text(encoding="utf-8"))
+                    if not str(data.get('full_text') or '').strip():raise ValueError('缓存逐字稿为空，将重新获取或转录')
                     segments = [TranscriptSegment(**seg) for seg in data.get("segments", [])]
                     transcript = TranscriptResult(
                         language=data.get("language"),
@@ -515,6 +516,7 @@ class NoteGenerator:
             logger.info(f"检测到转写缓存 ({transcript_cache_file})，尝试读取")
             try:
                 data = json.loads(transcript_cache_file.read_text(encoding="utf-8"))
+                if not str(data.get('full_text') or '').strip():raise ValueError('缓存逐字稿为空，将重新获取或转录')
                 segments = [TranscriptSegment(**seg) for seg in data.get("segments", [])]
                 return TranscriptResult(language=data.get("language"), full_text=data["full_text"], segments=segments, raw=data.get("raw"))
             except Exception as e:
@@ -568,6 +570,7 @@ class NoteGenerator:
             logger.info(f"检测到转写缓存 ({transcript_cache_file})，尝试读取")
             try:
                 data = json.loads(transcript_cache_file.read_text(encoding="utf-8"))
+                if not str(data.get('full_text') or '').strip():raise ValueError('缓存逐字稿为空，将重新获取或转录')
                 segments = [TranscriptSegment(**seg) for seg in data.get("segments", [])]
                 return TranscriptResult(language=data["language"], full_text=data["full_text"], segments=segments, raw=data.get("raw"))
             except Exception as e:

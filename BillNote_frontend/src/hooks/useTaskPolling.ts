@@ -22,7 +22,7 @@ export const useTaskPolling = (interval = 3000) => {
       polling=true
       try {
       const pendingTasks = tasksRef.current.filter(
-        task => task.status !== 'SUCCESS' && task.status !== 'FAILED'
+        task => (task.status !== 'SUCCESS' && task.status !== 'FAILED') || (task.status==='FAILED' && task.message==='上次处理被中断，已保留缓存，可以重试。' && !finalCheckedRef.current.has(task.id))
       )
 
       // 无活跃任务时跳过轮询
@@ -70,3 +70,4 @@ export const useTaskPolling = (interval = 3000) => {
     return () => clearInterval(timer)
   }, [interval])
 }
+

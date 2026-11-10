@@ -62,6 +62,7 @@ export interface Task {
 }
 
 interface TaskStore {
+  syncQueue: (rows: {task_id:string;state:string}[]) => void
   addBatch: (rows: Task[]) => void
   tasks: Task[]
   currentTaskId: string | null
@@ -74,6 +75,7 @@ interface TaskStore {
 export const useTaskStore = create<TaskStore>()(
   persist(
     (set) => ({
+      syncQueue: rows=>set(state=>{const queue=new Map(rows.map(r=>[r.task_id,r.state]));return {tasks:state.tasks.map(t=>t.status==='FAILED'&&t.message==='上次处理被中断，已保留缓存，可以重试。'&&['PENDING','RUNNING'].includes(queue.get(t.id)||'')?{...t,status:'PENDING',message:'已恢复队列状态，等待处理'}:t)}}),
       addBatch: rows => set(state=>{const ids=new Set(state.tasks.map(t=>t.id));return {tasks:[...state.tasks,...rows.filter(row=>!ids.has(row.id))]}}),
       tasks: [],
       currentTaskId: null,
