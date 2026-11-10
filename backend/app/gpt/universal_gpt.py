@@ -99,7 +99,7 @@ class UniversalGPT(GPT):
 
     def _build_source_signature(self, source: GPTSource) -> str:
         payload = {
-            "prompt_version": "mini-live-v2-argument-analysis",
+            "prompt_version": "mini-live-v3-quick-take",
             "model": self.model,
             "temperature": self.temperature,
             "max_request_bytes": self.max_request_bytes,
