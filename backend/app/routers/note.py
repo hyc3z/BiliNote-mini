@@ -138,7 +138,9 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
     if not model_name or not provider_id:
         raise HTTPException(status_code=400, detail="请选择模型和提供者")
 
+    from app.services.task_cancellation import scope, check, TaskCancelled, finish
     def _execute_note_task():
+      with scope(task_id):
         return NoteGenerator().generate(
             video_url=video_url,
             platform=platform,
@@ -157,7 +159,12 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
         )
 
     logger.info(f"任务进入执行队列 (task_id={task_id})")
-    note = task_serial_executor.run(_execute_note_task)
+    try:
+        note = task_serial_executor.run(_execute_note_task)
+        check(task_id)
+    except TaskCancelled:
+        finish(task_id)
+        return
     logger.info(f"Note generated: {task_id}")
     if not note or not note.markdown:
         logger.warning(f"任务 {task_id} 执行失败，跳过保存")
@@ -181,6 +188,12 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks):
     try:
         if data.task_id:
             uuid.UUID(data.task_id)
+        from app.services.task_cancellation import clear
+        if data.task_id:
+            path=Path(NOTE_OUTPUT_DIR)/f'{data.task_id}.status.json'
+            if path.exists() and json.loads(path.read_text(encoding='utf-8')).get('status')=='CANCELLING':
+                return R.error(msg='任务仍在停止中，请稍后重试')
+            clear(data.task_id)
         video_id = extract_video_id(data.video_url, data.platform)
         # if not video_id:
         #     raise HTTPException(status_code=400, detail="无法提取视频 ID")
@@ -270,8 +283,8 @@ def get_task_status(task_id: str, include_transcript: bool = True):
                     "task_id": task_id
                 })
 
-        if status == TaskStatus.FAILED.value:
-            return R.success({"status": TaskStatus.FAILED.value, "message": message or "任务失败", "progress": progress, "partial_result": partial_result, "task_id": task_id})
+        if status in (TaskStatus.FAILED.value,'CANCELLED','CANCELLING'):
+            return R.success({"status": status, "message": message or "任务失败", "progress": progress, "partial_result": partial_result, "task_id": task_id})
 
         # 处理中状态
         return R.success({
@@ -441,3 +454,9 @@ def timestamp_frame(task_id: str, seconds: int):
 def submission_batches():
     from app.services.submission_batches import list_batches
     return R.success(data=list_batches())
+
+
+@router.post('/tasks/stop_all')
+def stop_all_tasks():
+    from app.services.task_cancellation import stop_all
+    return R.success(data=stop_all())

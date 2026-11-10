@@ -346,6 +346,8 @@ class NoteGenerator:
         :param status: TaskStatus 枚举或自定义状态字符串
         :param message: 可选消息，用于记录失败原因等
         """
+        from app.services.task_cancellation import check
+        check(task_id)
         if not task_id:
             return
 

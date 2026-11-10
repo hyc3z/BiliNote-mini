@@ -196,6 +196,8 @@ class UniversalGPT(GPT):
         )
 
     def _do_create(self, messages: list):
+        from app.services.task_cancellation import check
+        check()
         """单次调用。如果模型拒绝自定义 temperature，就地去掉该参数再试一次
         （不消耗外层的重试次数预算），仍失败则把异常抛给外层重试逻辑。"""
         try:

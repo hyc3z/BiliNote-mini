@@ -34,6 +34,9 @@ def recover_interrupted_tasks(folder):
             continue
         try:
             record = json.loads(path.read_text(encoding="utf-8"))
+            from app.services.task_cancellation import cancelled,finish
+            if cancelled(path.name.removesuffix('.status.json')):
+                finish(path.name.removesuffix('.status.json'));continue
             if record.get("status") in ("SUCCESS", "FAILED"):
                 continue
             previous = record.get("status")

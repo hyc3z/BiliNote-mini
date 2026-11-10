@@ -34,6 +34,8 @@ def main():
                     error=None if state=='SUCCESS' else '处理失败，请查询任务状态'
                 except Exception as exc:
                     state='FAILED';error=str(exc)
+                from app.services.task_cancellation import cancelled,finish
+                if cancelled(row['task_id']):state='CANCELLED';error='用户停止';finish(row['task_id'])
                 with jobs_db() as db:db.execute('UPDATE jobs SET state=?,error=? WHERE task_id=?',(state,error,row['task_id']))
         with ThreadPoolExecutor(max_workers=worker_count()) as pool:
             futures=[pool.submit(consume) for _ in range(worker_count())]

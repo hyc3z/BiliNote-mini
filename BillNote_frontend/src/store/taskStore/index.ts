@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { get, set, del } from 'idb-keyval'
 
 
-export type TaskStatus = 'PENDING' | 'RUNNING' | 'PARSING' | 'DOWNLOADING' | 'MODEL_DOWNLOADING' | 'MODEL_LOADING' | 'TRANSCRIBING' | 'SUMMARIZING' | 'SAVING' | 'SUCCESS' | 'FAILED'
+export type TaskStatus = 'CANCELLED' | 'CANCELLING' | 'PENDING' | 'RUNNING' | 'PARSING' | 'DOWNLOADING' | 'MODEL_DOWNLOADING' | 'MODEL_LOADING' | 'TRANSCRIBING' | 'SUMMARIZING' | 'SAVING' | 'SUCCESS' | 'FAILED'
 
 export interface AudioMeta {
   cover_url: string
@@ -62,6 +62,7 @@ export interface Task {
 }
 
 interface TaskStore {
+  applyStopStates: (states: Record<string,TaskStatus>) => void
   syncQueue: (rows: {task_id:string;state:string}[]) => void
   addBatch: (rows: Task[]) => void
   tasks: Task[]
@@ -75,6 +76,7 @@ interface TaskStore {
 export const useTaskStore = create<TaskStore>()(
   persist(
     (set) => ({
+      applyStopStates: states=>set(state=>({tasks:state.tasks.map(t=>states[t.id]?{...t,status:states[t.id],message:states[t.id]==='CANCELLED'?'已停止，缓存已保留':'停止中，等待当前步骤返回'}:t)})),
       syncQueue: rows=>set(state=>{const queue=new Map(rows.map(r=>[r.task_id,r.state]));return {tasks:state.tasks.map(t=>t.status==='FAILED'&&t.message==='上次处理被中断，已保留缓存，可以重试。'&&['PENDING','RUNNING'].includes(queue.get(t.id)||'')?{...t,status:'PENDING',message:'已恢复队列状态，等待处理'}:t)}}),
       addBatch: rows => set(state=>{const ids=new Set(state.tasks.map(t=>t.id));return {tasks:[...state.tasks,...rows.filter(row=>!ids.has(row.id))]}}),
       tasks: [],
