@@ -114,6 +114,7 @@ export function HomePage() {
         const jobs:any = await request.get('/chat_jobs', {suppressToast:true})
         if(stopped) return
         const current = useTaskStore.getState()
+        current.syncQueue(jobs)
         const missing=jobs.filter((job:any)=>!current.tasks.some(t=>t.id===job.task_id))
         if(missing.length)current.addBatch(missing.map((job:any)=>({id:job.task_id,status:job.state==='SUCCESS'?'SUCCESS':job.state==='FAILED'?'FAILED':'PENDING',platform:'bilibili',createdAt:new Date(job.created_at*1000).toISOString(),formData:{video_url:job.source,platform:'bilibili',quality:'medium',model_name:'',provider_id:''},markdown:'',transcript:{full_text:'',language:'',raw:null,segments:[]},audioMeta:{title:job.title,video_id:'',duration:0,platform:'bilibili',file_path:'',cover_url:'',raw_info:null}})))
       } catch { /* Web server may not yet have the optional chat adapter. */ }

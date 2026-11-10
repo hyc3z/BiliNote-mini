@@ -372,7 +372,7 @@ def remove_history_task(task_id: str):
 def chat_jobs():
     from app.services.replay_chat import jobs_db
     with jobs_db() as db:
-        rows=db.execute("SELECT task_id,title,source,state,created_at FROM jobs WHERE state != 'DELETED' ORDER BY created_at DESC LIMIT 100").fetchall()
+        rows=db.execute("SELECT task_id,title,source,state,created_at FROM jobs WHERE state != 'DELETED' ORDER BY created_at DESC").fetchall()
     return R.success(data=[dict(row) for row in rows])
 
 class CorrectionRequest(BaseModel):
