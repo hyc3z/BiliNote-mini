@@ -435,3 +435,9 @@ def timestamp_frame(task_id: str, seconds: int):
         raise HTTPException(422, str(exc))
     except Exception:
         raise HTTPException(502, '截图读取失败，请稍后刷新重试')
+
+
+@router.get('/submission_batches')
+def submission_batches():
+    from app.services.submission_batches import list_batches
+    return R.success(data=list_batches())
