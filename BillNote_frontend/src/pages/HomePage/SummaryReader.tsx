@@ -1,3 +1,4 @@
+import { splitQuickTake } from '@/utils/quickTake'
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 
@@ -13,6 +14,7 @@ function originalAt(start:number,stamps:number[],segments:Segment[]){
   return segments.filter(s=>s.end>start&&s.start<next)
 }
 export default function SummaryReader({markdown,taskId,segments=[]}:{markdown:string;taskId:string;segments?:Segment[]}) {
+  const quickTake=splitQuickTake(markdown)
   const timestamps=(line:string)=>[...line.matchAll(/\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g)].flatMap(m=>{
     const query=m[2].match(/[?&]t=(\d+)/)
     if(query)return [Number(query[1])]
@@ -20,7 +22,7 @@ export default function SummaryReader({markdown,taskId,segments=[]}:{markdown:st
     return label?[label[3]?Number(label[1])*3600+Number(label[2])*60+Number(label[3]):Number(label[1])*60+Number(label[2])]:[]
   })
   const stamps=[...new Set(timestamps(markdown))].sort((a,b)=>a-b)
-  const lines=markdown.split('\n')
+  const lines=quickTake.body.split('\n')
   const inserts=new Map<number,number[]>()
   lines.forEach((line,index)=>{
     const times=timestamps(line)
@@ -109,7 +111,7 @@ export default function SummaryReader({markdown,taskId,segments=[]}:{markdown:st
     animation.current=requestAnimationFrame(tick)
 
   }
-  return <div className="summary-workspace"><article className="mini-markdown" ref={article}><ReactMarkdown components={{img:({src,alt})=>{
+  return <div className="summary-workspace"><article className="mini-markdown" ref={article}>{quickTake.summary&&<section className="quick-take-card" aria-label="整片省流"><strong>省流：</strong><ReactMarkdown>{quickTake.summary}</ReactMarkdown></section>}<ReactMarkdown components={{img:({src,alt})=>{
     if(src?.startsWith('/__transcript__/')){
       const start=Number(src.split('/').pop()),original=originalAt(start,stamps,segments)
       return <span className="paired-original"><span className="paired-original-label">原始文字稿 · {clock(start)}{original.length?' — '+clock(original[original.length-1].end):''}</span>{original.length?original.map((s,i)=><span className="paired-original-line" key={i}><small>{clock(s.start)}</small><em>{s.text}</em></span>):<em>此时间范围暂无匹配原文。</em>}</span>
