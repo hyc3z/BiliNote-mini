@@ -186,6 +186,8 @@ def enqueue_parts(all_parts, model=None, start=True):
             with library.database() as notes_db:
                 removed = bool(existing and notes_db.execute('SELECT 1 FROM removed WHERE task_id=?',(existing['task_id'],)).fetchone())
             task_id = existing['task_id'] if existing and existing['state']=='FAILED' and not removed else str(uuid.uuid4())
+            from app.services.task_cancellation import clear
+            clear(task_id)
             db.execute("INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(bvid,cid) DO UPDATE SET task_id=excluded.task_id,state='PENDING',error=NULL,provider_id=excluded.provider_id,model_name=excluded.model_name",(task_id,part['bvid'],part['cid'],part['part'],part['title'],part['source'],selected['provider_id'],selected['model_name'],'PENDING',time.time(),None))
             folder = Path(os.getenv('NOTE_OUTPUT_DIR','note_results'));folder.mkdir(exist_ok=True)
             (folder/f'{task_id}.status.json').write_text(json.dumps({'status':'PENDING','started_at':time.time(),'title':part['title']}),encoding='utf-8')
