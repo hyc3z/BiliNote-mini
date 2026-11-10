@@ -63,4 +63,7 @@ def prepare(video_url, keys, model, start=True):
     if not chosen.issubset(available):
         raise ValueError('选集信息已变化，请重新解析后选择')
     from app.services.replay_chat import enqueue_parts
-    return enqueue_parts([p for p in selection['parts'] if p['key'] in chosen], model=model, start=start)
+    result=enqueue_parts([p for p in selection['parts'] if p['key'] in chosen], model=model, start=start)
+    from app.services.submission_batches import record
+    result['batch_id']=record(selection['title'],result['parts'])
+    return result

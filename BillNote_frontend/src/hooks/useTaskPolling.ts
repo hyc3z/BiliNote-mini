@@ -20,6 +20,7 @@ export const useTaskPolling = (interval = 3000) => {
     const timer = setInterval(async () => {
       if(polling)return
       polling=true
+      let completed=0
       try {
       const pendingTasks = tasksRef.current.filter(
         task => (task.status !== 'SUCCESS' && task.status !== 'FAILED') || (task.status==='FAILED' && task.message==='上次处理被中断，已保留缓存，可以重试。' && !finalCheckedRef.current.has(task.id))
@@ -42,7 +43,7 @@ export const useTaskPolling = (interval = 3000) => {
           if (status) {
             if (status === 'SUCCESS') {
               const { markdown, transcript, audio_meta } = res.result
-              toast.success('笔记生成成功')
+              completed++
               updateTaskContent(task.id, {
                 status,
                 markdown,
@@ -64,7 +65,7 @@ export const useTaskPolling = (interval = 3000) => {
           // Keep the task active across temporary network failures.
         }
       }
-      } finally {polling=false}
+      } finally {polling=false;if(completed)toast.success('本轮完成 '+completed+' 条笔记，进度已更新',{id:'batch-completion',duration:2500})}
     }, interval)
 
     return () => clearInterval(timer)
