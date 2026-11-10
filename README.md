@@ -91,3 +91,13 @@ LLM 分析单独点击触发，使用工作台所选模型与现有密钥。最�
 输入框支持 YouTube 单个视频（watch/Shorts/live 回放）及 Instagram 视频帖/Reels 链接，自动识别来源并在笔记标题下显示来源标签。使用本地 Whisper 自动识别音频语言，调用已配置的文字模型生成中文笔记。外站当前走音频转录；B 站保留原有字幕优先与多分 P 选择。
 
 外站暂不支持播放列表、正在直播的视频、评论采集或自动登录。Instagram 无独立音轨时可能需要获取含画面的媒体文件。私密、登录要求、地区限制及平台反爬可能导致获取失败，页面会显示原因。Instagram 原片链接跳回视频，不能承诺定位到秒。截图与笔记仍保存在本地。
+
+## DeepSeek Harness 插件构建
+
+在 BillNote_frontend 运行 pnpm build，会同时生成前端和插件目录 dist/deepseek-harness/bilinote-mini，以及同目录下的 hyc3z-dsh-bilinote-mini-0.1.0.tgz。此包绑定构建机器上的项目路径，复用 Python 虚拟环境、模型和数据，不包含用户凭据。
+
+在 Harness 的插件管理中安装生成的本地组合包；CLI 示例：`dsh plugin --profile 你的配置名 add C:/Users/Administrator/source/BiliNote-mini/dist/deepseek-harness/hyc3z-dsh-bilinote-mini-0.1.0.tgz`。配置名应使用当前 Harness 的 profile，不要直接编辑 profile 文件。
+
+启用后在聊天输入区展开“BiliNote 工作台”即可操作。插件自动复用或启动本地 8483 后端，前端成品由后端托管，无需另开 Vite。首次配置仍需安装 backend/requirements.txt 和可选的 requirements-mcp.txt。MCP 提供现有的搜索、阅读及极客湾回放工具。具体说明见 integrations/deepseek-harness/README.md。
+
+当前已验证构建、插件脚本语法、包清单、后端工作台路由和 MCP 握手；尚未在连接的 Harness profile 内验证安装及实际 UI 渲染。
