@@ -62,6 +62,7 @@ export interface Task {
 }
 
 interface TaskStore {
+  addBatch: (rows: Task[]) => void
   tasks: Task[]
   currentTaskId: string | null
   addPendingTask: (taskId: string, platform: string, formData: any) => void
@@ -73,6 +74,7 @@ interface TaskStore {
 export const useTaskStore = create<TaskStore>()(
   persist(
     (set) => ({
+      addBatch: rows => set(state=>{const ids=new Set(state.tasks.map(t=>t.id));return {tasks:[...state.tasks,...rows.filter(row=>!ids.has(row.id))]}}),
       tasks: [],
       currentTaskId: null,
 

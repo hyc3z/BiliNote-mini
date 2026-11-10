@@ -114,12 +114,8 @@ export function HomePage() {
         const jobs:any = await request.get('/chat_jobs', {suppressToast:true})
         if(stopped) return
         const current = useTaskStore.getState()
-        for(const job of jobs) {
-          if(current.tasks.some(t=>t.id===job.task_id)) continue
-          const selectedId = useTaskStore.getState().currentTaskId
-          current.addPendingTask(job.task_id,'bilibili',{video_url:job.source,platform:'bilibili',quality:'medium',model_name:'',provider_id:''} as any)
-          if(selectedId) current.setCurrentTask(selectedId)
-        }
+        const missing=jobs.filter((job:any)=>!current.tasks.some(t=>t.id===job.task_id))
+        if(missing.length)current.addBatch(missing.map((job:any)=>({id:job.task_id,status:job.state==='SUCCESS'?'SUCCESS':job.state==='FAILED'?'FAILED':'PENDING',platform:'bilibili',createdAt:new Date(job.created_at*1000).toISOString(),formData:{video_url:job.source,platform:'bilibili',quality:'medium',model_name:'',provider_id:''},markdown:'',transcript:{full_text:'',language:'',raw:null,segments:[]},audioMeta:{title:job.title,video_id:'',duration:0,platform:'bilibili',file_path:'',cover_url:'',raw_info:null}})))
       } catch { /* Web server may not yet have the optional chat adapter. */ }
     }
     syncChatJobs()
@@ -187,16 +183,7 @@ export function HomePage() {
       } else {
         for(const bv of new Set(selection.data!.parts.filter(p=>selection.keys.includes(p.key)).map(p=>p.bvid)))await bindTags(bv,newTags)
         const batch:any=await request.post('/prepare_selection',{video_url:input,keys:selection.keys,model_name:selected.model_name,provider_id:String(selected.provider_id)},{timeout:120000})
-        for(const part of [...batch.parts].reverse()) {
-          const current=useTaskStore.getState()
-          if(!current.tasks.some(t=>t.id===part.task_id)) current.addPendingTask(part.task_id,'bilibili',{...payload,video_url:part.source,group_title:selection.data?.kind==='pages'?selection.data.title:part.title})
-          const added=useTaskStore.getState().tasks.find(t=>t.id===part.task_id)!
-          current.updateTaskContent(part.task_id,{status:part.state==='SUCCESS'?'SUCCESS':part.state==='RUNNING'?'RUNNING':'PENDING',audioMeta:{...added.audioMeta,title:part.title,video_id:part.bvid+'_p'+part.part},message:part.reused?'复用已有笔记或任务':''})
-          if(part.state==='SUCCESS') {
-            const saved:any=await request.get('/library/'+part.task_id)
-            current.updateTaskContent(part.task_id,{markdown:saved.markdown,transcript:saved.transcript,audioMeta:saved.audio_meta,summaryStale:!!saved.summary_stale})
-          }
-        }
+        store.addBatch(batch.parts.map((part:any)=>({id:part.task_id,status:part.state==='SUCCESS'?'SUCCESS':part.state==='RUNNING'?'RUNNING':'PENDING',platform:'bilibili',createdAt:new Date().toISOString(),formData:{...payload,video_url:part.source,group_title:selection.data?.kind==='pages'?selection.data.title:part.title},markdown:'',transcript:{full_text:'',language:'',raw:null,segments:[]},audioMeta:{title:part.title,video_id:part.bvid+'_p'+part.part,duration:part.duration||0,platform:'bilibili',file_path:'',cover_url:'',raw_info:null}})))
         if(batch.parts.length)store.setCurrentTask(batch.parts[0].task_id)
       }
     } catch (e: any) { setError(e?.detail || e?.msg || '提交失败，请检查后端连接。') }
