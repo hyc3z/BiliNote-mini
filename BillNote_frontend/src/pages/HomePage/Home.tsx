@@ -33,6 +33,16 @@ export function HomePage() {
   useEffect(()=>{let active=true;const refresh=()=>request.get('/submission_batches',{suppressToast:true}).then((rows:any)=>{if(active)setBatches(rows)}).catch(()=>{});refresh();const timer=setInterval(refresh,15000);return()=>{active=false;clearInterval(timer)}},[])
   const [url, setUrl] = useState('')
   const selection=useVideoSelection(url)
+  const [selectionQuery, setSelectionQuery] = useState('')
+  useEffect(() => setSelectionQuery(''), [url])
+  const titleTerms = selectionQuery.normalize('NFKC').toLowerCase().trim().split(/\s+/).filter(Boolean)
+  const selectedKeys = new Set(selection.keys)
+  const visibleParts = (selection.data?.parts ?? []).map((part, index) => ({ part, index })).filter(({ part }) => {
+    const title = part.title.normalize('NFKC').toLowerCase()
+    return titleTerms.every(term => title.includes(term))
+  })
+  const hiddenSelected = selection.keys.length - visibleParts.filter(({ part }) => selectedKeys.has(part.key)).length
+
   const [model, setModel] = useState(localStorage.getItem('mini-model') || '')
   const [tab, setTab] = useState('summary')
   const [busy, setBusy] = useState(false)
@@ -229,7 +239,27 @@ export function HomePage() {
         {!allVideos&&(selection.loading || selection.error || selection.data) && <section className="mini-selection" aria-label="视频选集">
           {selection.loading ? <p className="mini-selection-loading"><Loader2 size={16} className="mini-spin"/>正在读取选集标题与时长…</p> : selection.error ? <div role="alert"><p>{selection.error}</p><button className="mini-secondary" onClick={selection.retry}>重新解析</button></div> : selection.data && <>
             <header><div><p className="mini-eyebrow">CHOOSE YOUR CHAPTERS</p><h2>{selection.data.title}</h2><p>{selection.data.kind==='collection'?'视频合集':'视频选集'} · 共 {selection.data.parts.length} 项 · 已选 {selection.keys.length} 项 · {time(selection.data.parts.filter(p=>selection.keys.includes(p.key)).reduce((sum,p)=>sum+(p.duration||0),0))}</p></div><div className="mini-selection-actions"><button type="button" disabled={busy} onClick={()=>selection.setKeys(selection.data!.parts.map(p=>p.key))}>全选</button><button type="button" disabled={busy} onClick={()=>selection.setKeys([])}>清空</button></div></header>
-            <div className="mini-selection-list">{selection.data.parts.map((part,index)=><label key={part.key} className={selection.keys.includes(part.key)?'checked':''}><input type="checkbox" disabled={busy} checked={selection.keys.includes(part.key)} onChange={e=>selection.setKeys(e.target.checked?[...selection.keys,part.key]:selection.keys.filter(k=>k!==part.key))}/><span className="mini-selection-number">{String(index+1).padStart(2,'0')}</span><span className="mini-selection-title" title={part.title}>{part.title}</span><time>{time(part.duration||0)}</time></label>)}</div>
+            <div className="mini-selection-search">
+              <label><Search size={16}/><input type="search" aria-label="搜索选集标题" placeholder="搜索选集标题" value={selectionQuery} onChange={e => setSelectionQuery(e.target.value)}/></label>
+              {titleTerms.length > 0 && <>
+                <span role="status">匹配 {visibleParts.length} 项{hiddenSelected > 0 ? ` · 另有 ${hiddenSelected} 项已选` : ''}</span>
+                <button type="button" className="mini-secondary" disabled={busy || !visibleParts.length} onClick={() => selection.setKeys(visibleParts.map(({ part }) => part.key))}>仅选搜索结果</button>
+              </>}
+            </div>
+            <div className="mini-selection-list">
+              {visibleParts.length === 0 && <p className="mini-selection-no-results">没有匹配的标题，试试其他关键词。</p>}
+              {visibleParts.map(({ part, index }) => (
+                <div className="mini-selection-row" key={part.key}>
+                  <label className={selectedKeys.has(part.key) ? 'checked' : ''}>
+                    <input type="checkbox" disabled={busy} checked={selectedKeys.has(part.key)} onChange={e => selection.setKeys(e.target.checked ? [...selection.keys, part.key] : selection.keys.filter(key => key !== part.key))}/>
+                    <span className="mini-selection-number">{String(index + 1).padStart(2, '0')}</span>
+                    <span className="mini-selection-title" title={part.title}>{part.title}</span>
+                    <time>{time(part.duration || 0)}</time>
+                  </label>
+                  {titleTerms.length > 0 && <button type="button" disabled={busy} aria-label={'只选 ' + part.title} onClick={() => selection.setKeys([part.key])}>只选此项</button>}
+                </div>
+              ))}
+            </div>
             <footer>默认全选，可取消不需要的内容。每项单独保存，依次处理；已有笔记直接复用。</footer>
           </>}
         </section>}
