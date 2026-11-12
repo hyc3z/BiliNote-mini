@@ -52,6 +52,12 @@ class VideoSelectionTests(unittest.TestCase):
             with self.assertRaises(ValueError):selection.prepare(BV,[f'{OTHER}:999'],{})
             enqueue.assert_not_called()
 
+    def test_single_part_uses_collection_title_and_keeps_alternate_titles(self):
+        data = {'title': '把左脑和右脑分割', 'pages': [{'cid': 123, 'part': '裂腦實驗', 'page': 1}]}
+        part = selection.rows(BV, data, '左右脑实验')[0]
+        self.assertEqual(part['title'], '左右脑实验')
+        self.assertEqual(part['search_titles'], ['左右脑实验', '把左脑和右脑分割', '裂腦實驗'])
+
     def test_empty_batch_rejected(self):
         with self.assertRaises(ValueError):selection.prepare(BV,[],{})
 

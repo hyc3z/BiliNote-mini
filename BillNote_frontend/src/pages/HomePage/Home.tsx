@@ -38,7 +38,7 @@ export function HomePage() {
   const titleTerms = selectionQuery.normalize('NFKC').toLowerCase().trim().split(/\s+/).filter(Boolean)
   const selectedKeys = new Set(selection.keys)
   const visibleParts = (selection.data?.parts ?? []).map((part, index) => ({ part, index })).filter(({ part }) => {
-    const title = part.title.normalize('NFKC').toLowerCase()
+    const title = [part.title, ...(part.search_titles ?? []), part.bvid].join(' ').normalize('NFKC').toLowerCase()
     return titleTerms.every(term => title.includes(term))
   })
   const hiddenSelected = selection.keys.length - visibleParts.filter(({ part }) => selectedKeys.has(part.key)).length

@@ -12,9 +12,12 @@ def rows(bvid, data, title=None):
         if not page.get('cid'):
             raise ValueError('B 站未返回完整分 P 信息，请稍后重试')
         number=int(page.get('page', index))
-        label=page.get('part') or title or data.get('title', '')
+        part_title = page.get('part')
+        video_title = data.get('title')
+        label = (title or video_title or part_title) if len(pages) == 1 else (part_title or title or video_title)
+        search_titles = list(dict.fromkeys(value for value in (title, video_title, part_title) if value))
         result.append({'key': f"{bvid}:{page['cid']}", 'bvid': bvid, 'cid': str(page['cid']),
-            'part': number, 'title': label, 'duration': page.get('duration', 0),
+            'part': number, 'title': label or bvid, 'search_titles': search_titles, 'duration': page.get('duration', 0),
             'source': f'https://www.bilibili.com/video/{bvid}?p={number}'})
     return result
 
