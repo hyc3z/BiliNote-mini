@@ -69,3 +69,12 @@ body{background:#060712!important}.mini-vault{background:radial-gradient(ellipse
 .quick-take-card{padding:22px 26px;margin:0 0 30px;border:1px solid #a778d0;border-radius:14px;background:linear-gradient(120deg,#743cb533,#1f84952b);box-shadow:0 6px 24px #0001;break-inside:avoid}.quick-take-card>strong{font-size:17px;color:#dcb7ff}.quick-take-card p{margin:8px 0 0;line-height:1.9}.quick-take-card>p:first-of-type{display:inline;margin-left:5px}@media print{.quick-take-card{border:1px solid #bbb;background:#f5f1fa;padding:16px}.quick-take-card>strong{color:#593579}}
 
 .batch-navigation,.batch-pagination{display:flex;align-items:center;flex-wrap:wrap;gap:14px;margin:18px 0}.batch-navigation button,.batch-pagination button{padding:8px 14px;border:1px solid #8360a4;border-radius:8px;background:#442560;color:#ddc9ee}.batch-navigation strong{font-size:13px;color:#baa2cc}.submission-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;margin:20px 0}.submission-card{text-align:left;padding:24px;border:1px solid #735195;border-radius:14px;background:linear-gradient(120deg,#3b224955,#15354844);color:inherit}.submission-card h3{font-size:18px;margin:12px 0;line-height:1.6}.submission-card p{font-size:12px;opacity:.7}.submission-card progress{width:100%;height:7px;accent-color:#c574e6;margin:18px 0}.submission-card>div{display:flex;flex-wrap:wrap;gap:9px 16px;font-size:12px}.submission-card>strong{display:block;font-size:12px;color:#c59ae9;margin-top:20px}.submission-card:hover{border-color:#c89ce9;transform:translateY(-2px)}.batch-pagination{justify-content:center}.batch-pagination button:disabled{opacity:.4}
+
+.mini-selection-search{display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;padding:14px 24px;border-bottom:1px solid #9d7cbd55}
+.mini-selection-search label{display:flex;align-items:center;gap:8px;flex:1 1 220px}
+.mini-selection-search input{width:100%;min-width:0;background:transparent;color:inherit;border:1px solid #9d7cbd88;border-radius:8px;padding:7px 10px}
+.mini-selection-search span,.mini-selection-no-results{font-size:12px}
+.mini-selection-no-results{padding:18px 24px}
+.mini-selection-row{display:flex;align-items:center}
+.mini-selection-row label{flex:1;min-width:0}
+.mini-selection-row>button{flex-shrink:0;margin-right:14px;padding:5px 8px;border:1px solid #9d7cbd88;border-radius:6px;font-size:11px;color:inherit}
