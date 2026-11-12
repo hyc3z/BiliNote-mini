@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import request from '@/utils/request'
-export interface VideoPart { key: string; bvid: string; cid: string; part: number; title: string; duration: number; source: string }
+export interface VideoPart { key: string; bvid: string; cid: string; part: number; title: string; search_titles?: string[]; duration: number; source: string }
 interface Selection { title: string; kind: string; parts: VideoPart[] }
 export function useVideoSelection(url: string) {
   const [result,setResult]=useState<{input:string; data:Selection}|null>(null)
