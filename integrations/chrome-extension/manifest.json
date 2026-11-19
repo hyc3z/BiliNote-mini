@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BiliNote 省流",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "在 B 站 / YouTube 视频页右键省流，或在知乎回答/选中文字上右键快速判断；调用本地 BiliNote，工具栏徽标显示进度。",
   "minimum_chrome_version": "120",
   "permissions": ["contextMenus", "storage", "alarms", "notifications", "tabs", "cookies", "scripting"],

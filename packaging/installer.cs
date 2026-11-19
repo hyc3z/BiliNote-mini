@@ -9,8 +9,8 @@ using System.Text;
 [assembly: AssemblyTitle("BiliNote Mini Setup")]
 [assembly: AssemblyProduct("BiliNote Mini")]
 [assembly: AssemblyDescription("BiliNote Mini Windows installer")]
-[assembly: AssemblyVersion("0.7.5.0")]
-[assembly: AssemblyFileVersion("0.7.5.0")]
+[assembly: AssemblyVersion("0.7.6.0")]
+[assembly: AssemblyFileVersion("0.7.6.0")]
 
 internal static class Program
 {

@@ -220,7 +220,7 @@ try {
         }
     }
 
-    $version = '0.7.5'
+    $version = '0.7.6'
     $versionFile = Join-Path $InstallDir 'packaging\VERSION'
     if (Test-Path -LiteralPath $versionFile) { $version = (Get-Content -LiteralPath $versionFile -Raw).Trim() }
     if (-not $NoUninstallEntry) {

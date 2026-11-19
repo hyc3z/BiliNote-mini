@@ -503,17 +503,9 @@ async function refreshBadge(knownTasks) {
   const active = list.filter((task) => !isFinal(task.status))
 
   if (active.length) {
-    let text
-    if (active.length === 1) {
-      const task = active[0]
-      // 工具栏不能画真正的进度条，用百分比徽标近似 Chrome 下载提示。
-      text =
-        typeof task.percent === 'number'
-          ? String(Math.max(0, Math.min(100, Math.round(task.percent))))
-          : '…'
-    } else {
-      text = String(active.length)
-    }
+    // 工具栏徽标表示“还有多少个任务没完成”，不是当前任务的百分比。
+    // 百分比放在标题/悬浮提示里，避免 50% 被误读成 50 条任务。
+    const text = String(active.length)
     const detail = active
       .map(
         (task) =>
@@ -523,7 +515,7 @@ async function refreshBadge(knownTasks) {
     await chrome.action.setBadgeText({ text })
     await chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR })
     await chrome.action.setTitle({
-      title: `BiliNote 省流 · ${detail}\n点击查看任务列表`,
+      title: `BiliNote 省流 · ${active.length} 个任务未完成 · ${detail}\n点击查看任务列表`,
     })
     return
   }

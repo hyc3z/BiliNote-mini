@@ -8,9 +8,9 @@
 
 发布包在 `dist/release/`：
 
-- `BiliNoteMini-Setup-0.7.5.exe`：自解压安装程序，按用户安装，不需要管理员权限；
-- `BiliNoteMini-0.7.5-Setup.zip`：同内容的 ZIP；双击 `install.cmd` 也能安装；
-- `BiliNoteMini-Extension-0.6.3.crx` / `.zip`：Chrome 扩展。
+- `BiliNoteMini-Setup-0.7.6.exe`：自解压安装程序，按用户安装，不需要管理员权限；
+- `BiliNoteMini-0.7.6-Setup.zip`：同内容的 ZIP；双击 `install.cmd` 也能安装；
+- `BiliNoteMini-Extension-0.6.4.crx` / `.zip`：Chrome 扩展。
 
 双击 Setup 后：
 
@@ -21,13 +21,13 @@
 5. 安装程序直接解压到安装目录，不使用 `%TEMP%` 做自解压，避免部分机器 Temp 权限/安全软件导致的 `is-*.tmp` 错误；
 6. 如果 `%LOCALAPPDATA%\BiliNote Mini` 被安全软件/ACL 锁定，安装器会自动尝试 `%LOCALAPPDATA%\BiliNoteMini`、`%APPDATA%\BiliNoteMini`、用户目录、文档、桌面、当前目录，最后自动请求管理员权限；也可以手动指定：
    ```powershell
-   BiliNoteMini-Setup-0.7.5.exe /DIR=C:\BiliNoteMini
+   BiliNoteMini-Setup-0.7.6.exe /DIR=C:\BiliNoteMini
    ```
 7. 安装完成后自动启动原生托盘 `BiliNoteMiniTray.exe`；右键可打开工作台、打开日志、重启后端、开关自启动或退出。
 8. Windows 11 默认把新托盘图标放进任务栏右下角的 `^` 溢出区，可点开 `^` 找到并拖到常显区。
 9. 如果系统连 Desktop/AppData/HKCU 都禁止写入，安装器会装到唯一可写目录，并生成 `Start-BiliNoteMini.cmd` / `Open-BiliNoteMini.cmd` / `Stop-BiliNoteMini.cmd`；此时托盘仍会启动，但快捷方式和开机自启动会被跳过。需要放开这些权限或安全软件白名单后重装，才能恢复自启动。
 
-如果 Setup.exe 被 SmartScreen/企业策略拦截，解压 `BiliNoteMini-0.7.5-Setup.zip` 后双击 `install.cmd` 即可，内容是同一套文件和运行时。
+如果 Setup.exe 被 SmartScreen/企业策略拦截，解压 `BiliNoteMini-0.7.6-Setup.zip` 后双击 `install.cmd` 即可，内容是同一套文件和运行时。
 
 托盘不是 Windows Service：它需要和当前登录用户的通知区域交互，所以采用“用户登录后自启动 + 托盘进程”的方式，退出托盘会一并停止后端。数据/配置/模型在安装目录的 `backend\data`、`backend\config`、`backend\models`。
 
@@ -131,14 +131,14 @@ LLM 分析单独点击触发，使用工作台所选模型与现有密钥。最�
 
 - 在 B 站 / YouTube 视频页右键 **省流不看**，调用本地 `/api/generate_note` 排队生成笔记；
 - 在知乎问题页右键只有一个 **BiliNote 判断**：有选中文字就判断选中内容，否则自动判断当前回答或问题本身；
-- 工具栏图标随页面在 BiliNote / YouTube / B 站 / 知乎之间切换，徽标显示百分比或 ✓；
+- 工具栏图标随页面在 BiliNote / YouTube / B 站 / 知乎之间切换，徽标显示**未完成任务数量**或 ✓/!；
 - 点图标打开弹窗：进行中原生进度，已完成直接展示“省流：……”摘要，失败显示原因；悬浮卡片右上角 × 可只从扩展列表移除；
 - 任务记录保存在扩展本地，只保留进行中与最近 20 条；摘要通过 `/api/task_summary/{id}` 读取，不保存逐字稿到扩展。
 
 安装方式：
 
-- **CRX**：`dist/release/BiliNoteMini-Extension-0.6.3.crx`。Chrome 对商店外 CRX 有额外限制，无法安装时用下面两种；
-- **ZIP/解压**：解压 `dist/release/BiliNoteMini-Extension-0.6.3.zip`，打开 `chrome://extensions` → 开发者模式 → 加载已解压的扩展程序；
+- **CRX**：`dist/release/BiliNoteMini-Extension-0.6.4.crx`。Chrome 对商店外 CRX 有额外限制，无法安装时用下面两种；
+- **ZIP/解压**：解压 `dist/release/BiliNoteMini-Extension-0.6.4.zip`，打开 `chrome://extensions` → 开发者模式 → 加载已解压的扩展程序；
 - **开发目录**：直接加载 `integrations/chrome-extension`。
 
 在扩展选项里确认后端地址（默认 `127.0.0.1:8483`）和工作台地址（默认 `127.0.0.1:8483`，安装版由后端托管前端）。弹窗按当前页面显示平台登录（B 站 / YouTube），点 **同步** 一键从 Chrome 更新对应平台 Cookie。工作台深链 `#task=<id>` 可直接打开对应报告。
