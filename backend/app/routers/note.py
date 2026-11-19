@@ -17,7 +17,8 @@ from app.exceptions.note import NoteError
 from app.services.note import NoteGenerator, logger
 from app.services.task_serial_executor import task_serial_executor
 from app.utils.response import ResponseWrapper as R
-from app.utils.url_parser import extract_video_id, normalize_video_url
+from app.utils.url_parser import extract_video_id, normalize_video_url, normalize_youtube_url
+from app.utils.quick_take import extract_quick_take
 from app.validators.video_url_validator import is_supported_video_url
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import StreamingResponse
@@ -64,7 +65,13 @@ class VideoRequest(BaseModel):
             data["video_url"] = normalize_video_url(str(data["video_url"]))
         if isinstance(data, dict):
             from app.utils.video_source import detect
-            data["platform"] = detect(str(data.get("video_url", "")))
+            platform = detect(str(data.get("video_url", "")))
+            if platform == "bilibili":
+                data["video_url"] = normalize_video_url(str(data["video_url"]))
+            elif platform == "youtube":
+                # 只处理单个视频：丢弃 playlist / list / index 等参数。
+                data["video_url"] = normalize_youtube_url(str(data["video_url"]))
+            data["platform"] = platform
             data.update(screenshot=False, video_understanding=False, grid_size=[],
                         format=["link"], link=True, style="minimal")
         return data
@@ -353,6 +360,34 @@ def library_result(task_id: str):
     if result is None:
         raise HTTPException(status_code=404, detail="笔记不存在")
     return R.success(data=result)
+
+
+@router.get("/task_summary/{task_id}")
+def task_summary(task_id: str):
+    """给浏览器扩展弹窗用的轻量摘要，不返回完整逐字稿。"""
+    try:
+        uuid.UUID(task_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="无效任务编号")
+
+    from app.services.library import get as get_library
+    payload = get_library(task_id)
+    if payload is None:
+        path = Path(NOTE_OUTPUT_DIR) / f"{task_id}.json"
+        if path.is_file():
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                payload = None
+    if payload is None:
+        raise HTTPException(status_code=404, detail="笔记不存在")
+
+    audio = payload.get("audio_meta") or {}
+    return R.success(data={
+        "task_id": task_id,
+        "title": audio.get("title") or "",
+        "summary": extract_quick_take(payload.get("markdown") or ""),
+    })
 
 @router.delete("/tasks/{task_id}")
 def remove_history_task(task_id: str):

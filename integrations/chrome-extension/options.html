@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BiliNote 省流 · 扩展设置</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header>
+        <div>
+          <h1>BiliNote 省流</h1>
+          <p>Chrome 右键菜单扩展 · 本地 BiliNote Mini</p>
+        </div>
+        <span id="health" class="pill">检查中…</span>
+      </header>
+
+      <form id="form" novalidate>
+        <label>
+          后端接口地址
+          <input id="apiBase" type="url" placeholder="http://127.0.0.1:8483" required />
+        </label>
+        <p class="hint">start-mini.ps1 默认监听 8483；打包版（DeepSeek Harness 插件）也使用这个端口。</p>
+
+        <label>
+          工作台地址
+          <input id="workbenchBase" type="url" placeholder="http://127.0.0.1:3015" required />
+        </label>
+        <p class="hint">
+          默认是 Vite 开发地址 3015；如果工作台由后端托管（<code>http://127.0.0.1:8483</code>），把它改成同一个地址。
+        </p>
+
+        <label>
+          默认总结模型
+          <span class="select-row">
+            <select id="modelKey">
+              <option value="">自动选择第一个已启用模型</option>
+            </select>
+            <button type="button" id="reloadModels" class="ghost small">刷新</button>
+          </span>
+        </label>
+        <p class="hint">列表来自后端 <code>/api/model_list</code>；模型需先在工作台的“模型与设置”里添加并启用。</p>
+
+        <label class="check">
+          <input id="notify" type="checkbox" />
+          完成 / 失败时发送系统通知
+        </label>
+
+        <div class="actions">
+          <button type="submit" class="primary">保存</button>
+          <button type="button" id="test" class="secondary">测试连接</button>
+          <button type="button" id="openSettings" class="ghost">打开工作台设置</button>
+        </div>
+        <p id="result" class="result" role="status"></p>
+      </form>
+
+      <section class="usage">
+        <h2>怎么用</h2>
+        <ol>
+          <li>启动 <code>start-mini.ps1</code>，确认后端 <code>http://127.0.0.1:8483/api/sys_check</code> 正常。</li>
+          <li>打开 B 站 / YouTube / Instagram 视频页，右键 → <b>省流不看（BiliNote）</b>。</li>
+          <li>工具栏图标显示百分比 / ✓；点图标查看任务，点任务卡即可打开报告。</li>
+        </ol>
+        <p class="note">
+          Chrome 工具栏不支持真正的进度条，扩展用“百分比徽标 + 弹窗进度条”近似下载提示。MV3 后台会被休眠，徽标最快约 2 秒、最慢约 30 秒刷新一次；弹窗打开时是实时刷新。
+        </p>
+      </section>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

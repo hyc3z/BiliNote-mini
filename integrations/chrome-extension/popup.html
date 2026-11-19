@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BiliNote 省流</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <img src="icons/48.png" width="28" height="28" alt="" />
+        <div class="brand-text">
+          <strong>BiliNote 省流 <small id="version" class="version"></small></strong>
+          <span id="status">正在连接…</span>
+        </div>
+      </div>
+      <button id="refresh" class="icon-button" title="立即刷新" aria-label="立即刷新">↻</button>
+    </header>
+
+    <div id="reload-warning" class="reload-warning" hidden>
+      <span>扩展后台还是旧版本。请重新加载扩展，或到扩展管理页检查。</span>
+      <button id="reload-extension" type="button">立即重新加载</button>
+      <button id="open-extensions" type="button">扩展管理页</button>
+    </div>
+    <div id="notice" class="notice" hidden></div>
+    <div id="account-message" class="account-message" hidden></div>
+
+    <div class="account">
+      <span id="account-label" class="account-label">B 站登录</span>
+      <span id="bili-status" class="account-state">检测中…</span>
+      <button id="sync-cookie" class="sync-button" type="button">同步</button>
+    </div>
+
+    <main>
+      <section id="active-section" hidden>
+        <h2>进行中 <span id="active-count"></span></h2>
+        <div id="active-list" class="task-list"></div>
+      </section>
+
+      <section id="recent-section" hidden>
+        <h2>最近</h2>
+        <div id="recent-list" class="task-list"></div>
+      </section>
+
+      <div id="empty" class="empty" hidden>
+        <strong>还没开始省流</strong>
+        <p>在 B 站 / YouTube 视频页右键 → <b>省流不看（BiliNote）</b></p>
+        <p class="muted">任务会进入本地 BiliNote 队列；完成后点任务卡即可看报告。</p>
+      </div>
+    </main>
+
+    <footer>
+      <button id="open-workbench" class="primary">打开工作台</button>
+      <button id="open-options" class="ghost">扩展设置</button>
+      <button id="reload-footer" class="ghost">重载</button>
+    </footer>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

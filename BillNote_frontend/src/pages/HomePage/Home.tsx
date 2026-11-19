@@ -1,7 +1,7 @@
 import { exportPdf } from '@/utils/exportPdf'
 const sourcePlatform=(url:string)=>/https?:\/\/(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\//i.test(url)?'youtube':/https?:\/\/(?:www\.)?instagram\.com\//i.test(url)?'instagram':'bilibili'
 import CommentsPanel from './CommentsPanel'
-import { useEffect, useState, useLayoutEffect, useRef } from 'react'
+import { Fragment, useEffect, useState, useLayoutEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import SummaryReader from './SummaryReader'
 import { useTaskStore } from '@/store/taskStore'
@@ -16,6 +16,29 @@ import { useVideoSelection } from '@/hooks/useVideoSelection'
 
 const labels: Record<string, string> = { CANCELLED:'已停止', CANCELLING:'停止中', MODEL_DOWNLOADING: '下载模型', MODEL_LOADING: '加载模型', PENDING: '排队中', PARSING: '读取字幕', DOWNLOADING: '读取媒体', TRANSCRIBING: '音频转录', SUMMARIZING: '总结观点', SAVING: '保存中', SUCCESS: '已完成', FAILED: '失败' }
 const time = (s: number) => [Math.floor(s / 3600), Math.floor(s / 60) % 60, Math.floor(s) % 60].map(n => String(n).padStart(2, '0')).join(':')
+const TIME_GROUP_ORDER = ['今天', '上周', '早些时候', '很久以前']
+function relativeTimeGroup(value: number | string): string {
+  const stamp = typeof value === 'number' ? value : new Date(value).getTime()
+  if (!Number.isFinite(stamp)) return '很久以前'
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  if (stamp >= startOfToday) return '今天'
+  if (stamp >= startOfToday - 6 * 86400000) return '上周'
+  if (new Date(stamp).getFullYear() === now.getFullYear()) return '早些时候'
+  return '很久以前'
+}
+function groupByTime<T>(items: T[], getTime: (item: T) => number | string) {
+  const buckets = new Map<string, T[]>()
+  for (const item of items) {
+    const label = relativeTimeGroup(getTime(item))
+    const bucket = buckets.get(label)
+    if (bucket) bucket.push(item)
+    else buckets.set(label, [item])
+  }
+  return TIME_GROUP_ORDER
+    .map(label => ({ label, items: buckets.get(label) || [] }))
+    .filter(group => group.items.length > 0)
+}
 function download(name: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }))
   const a = document.createElement('a'); a.href = url; a.download = name; a.click()
@@ -118,6 +141,49 @@ export function HomePage() {
     event.preventDefault();event.stopPropagation()
     setMenu({id,x:Math.max(8,Math.min(event.clientX,window.innerWidth-225)),y:Math.max(8,Math.min(event.clientY,window.innerHeight-125))})
   }
+  // 浏览器扩展深链：/#task=<id>（兼容 ?task=<id>）直接打开对应报告；任务还没完成时落到“处理中”，由全局轮询接管。
+  useEffect(() => {
+    const search = new URLSearchParams(window.location.search)
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const taskId = search.get('task') || hash.get('task')
+    if (!taskId) return
+    const sourceUrl = search.get('url') || hash.get('url') || ''
+    const sourceTitle = search.get('title') || hash.get('title') || ''
+    const cleanUrl = () => {
+      const next = new URL(window.location.href)
+      for (const key of ['task', 'url', 'title']) next.searchParams.delete(key)
+      const rest = new URLSearchParams(next.hash.replace(/^#/, ''))
+      for (const key of ['task', 'url', 'title']) rest.delete(key)
+      const restText = rest.toString()
+      window.history.replaceState(null, '', next.pathname + next.search + (restText ? '#' + restText : ''))
+    }
+    const apply = async () => {
+      try {
+        const result: any = await request.get('/library/' + taskId, { suppressToast: true })
+        const current = useTaskStore.getState()
+        if (!current.tasks.some(t => t.id === taskId)) {
+          const platform = sourcePlatform(result.audio_meta?.raw_info?.webpage_url || sourceUrl)
+          current.addPendingTask(taskId, platform, { video_url: sourceUrl, platform, quality: 'medium', model_name: '', provider_id: '' } as any)
+        }
+        useTaskStore.getState().updateTaskContent(taskId, { status: 'SUCCESS', markdown: result.markdown, transcript: result.transcript, audioMeta: result.audio_meta, summaryStale: !!result.summary_stale })
+        useTaskStore.getState().setCurrentTask(taskId)
+        setTab('summary'); setAllVideos(false)
+      } catch {
+        const current = useTaskStore.getState()
+        if (!current.tasks.some(t => t.id === taskId)) {
+          const platform = sourcePlatform(sourceUrl)
+          current.addPendingTask(taskId, platform, { video_url: sourceUrl, platform, quality: 'medium', model_name: '', provider_id: '' } as any)
+          if (sourceTitle) current.updateTaskContent(taskId, { audioMeta: { cover_url: '', duration: 0, file_path: '', platform, raw_info: null, title: sourceTitle, video_id: '' } } as any)
+        }
+        setAllVideos(false)
+      } finally {
+        cleanUrl()
+      }
+    }
+    const start = () => { void apply() }
+    if (useTaskStore.persist.hasHydrated()) start()
+    else return useTaskStore.persist.onFinishHydration(start)
+  }, [])
   async function deleteTask(id:string) {
     setMenu(null)
     try { await request.delete('/tasks/'+id); await store.removeTask(id); setLibrary(rows=>rows.filter(r=>r.task_id!==id)) }
@@ -183,6 +249,8 @@ export function HomePage() {
   const batchMembers=selectedBatch?new Set(selectedBatch.task_ids):null
   const batchGroups=visibleGroups.map(g=>batchMembers?{...g,parts:g.parts.filter((p:any)=>batchMembers.has(p.id))}:g).filter(g=>g.parts.length)
   const pageGroups=batchHome?[]:batchGroups.slice((batchPage-1)*30,batchPage*30)
+  const pageTimeGroups=groupByTime(pageGroups,(g:any)=>g.created)
+  const batchTimeGroups=groupByTime(batches,(batch:any)=>Number(batch.created_at)*1000)
   async function openGroup(g:any){const last=localStorage.getItem('mini-last:'+g.bv);setChapterQuery('');setChapterIds([]);await openPart(g.parts.find((p:any)=>p.id===last)||g.parts.find((p:any)=>p.status==='SUCCESS')||g.parts[0])}
   useEffect(()=>{if(group&&task)localStorage.setItem('mini-last:'+group.bv,task.id)},[task?.id,group?.bv])
   const markdown = typeof task?.markdown === 'string' ? task.markdown : task?.markdown?.[0]?.content || ''
@@ -271,11 +339,14 @@ export function HomePage() {
           <div className="vault-toolbar"><label><Search size={17}/><input aria-label="搜索笔记" placeholder="搜索标题、BV、UP 主或笔记内容" value={query} onChange={e=>setQuery(e.target.value)}/></label><select aria-label="筛选状态" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">全部状态</option><option value="done">已完成</option><option value="working">整理中</option><option value="failed">需重试</option><option value="cancelled">已停止</option></select><select aria-label="排序" value={sortBy} onChange={e=>setSortBy(e.target.value)}><option value="newest">最近添加</option><option value="oldest">最早添加</option><option value="title">标题 A–Z</option></select></div>
           {searchError&&<p role="alert">{searchError}</p>}
           <div className="batch-navigation"><button disabled={stoppingAll} onClick={stopAll}>{stoppingAll?'正在发送停止请求…':'停止全部任务'}</button>{stopMessage&&<span role="status">{stopMessage}</span>}<button onClick={()=>setBatchId('__batches__')}>提交批次</button><button onClick={()=>setBatchId('__all__')}>全部视频</button>{selectedBatch&&<strong>{selectedBatch.title}</strong>}</div>
-          {batchHome&&<div className="submission-grid">{batches.map(batch=>{
+          {batchHome&&<div className="vault-table" role="table" aria-label="提交批次"><div className="vault-table-head" role="row"><span>批次 / 标题</span><span>整体状态</span><span>任务数</span><span>创建时间</span><span/></div>{batchTimeGroups.map(group=><Fragment key={group.label}><div className="vault-group-title" role="row"><span>{group.label}</span><span>{group.items.length} 个批次</span></div>{group.items.map(batch=>{
             const ids=new Set(batch.task_ids),items=records.filter(p=>ids.has(p.id)),done=items.filter(p=>p.status==='SUCCESS').length,failed=items.filter(p=>['FAILED','CANCELLED'].includes(p.status)).length,running=items.filter(p=>!['SUCCESS','FAILED','CANCELLED','PENDING'].includes(p.status)).length,pending=Math.max(0,batch.task_ids.length-done-failed-running)
-            return <button className="submission-card" key={batch.id} onClick={()=>setBatchId(batch.id)}><span className="mini-eyebrow">{batch.inferred?'历史批次 · 按入队时间归组':'提交批次'}</span><h3>{batch.title}</h3><p>{new Date(batch.created_at*1000).toLocaleString()} · {batch.task_ids.length} 项</p><progress max={batch.task_ids.length} value={done}/><div><span>已完成 {done}</span><span>处理中 {running}</span><span>排队 {pending}</span><span>失败 {failed}</span></div><strong>查看批次 →</strong></button>
-          })}</div>}
-          <div className="vault-table" style={{display:batchHome?'none':undefined}} role="table" aria-label="笔记管理"><div className="vault-table-head" role="row"><span>视频 / 笔记</span><span>整体状态</span><span>视频总时长</span><span>添加时间</span><span/></div>{pageGroups.map(g=>{const done=g.parts.filter((p:any)=>p.status==='SUCCESS').length;const state=groupStatus(g);const duration=g.parts.reduce((n:number,p:any)=>n+Number(p.task?.audioMeta?.duration||p.duration||0),0);return <div className="vault-row" role="row" key={g.bv}><button className="vault-title" onClick={()=>openGroup(g)}><span className={'vault-file '+state}><BookOpen size={23}/></span><span><strong>{g.title}</strong><small>{g.bv} <b>·</b> {g.parts.length} 个分 P</small></span></button><div className={'vault-status '+state}><span><i/>{state==='done'?'已完成':state==='working'?'整理中':state==='cancelled'?'已停止':'需重试'}<small>{done}/{g.parts.length}</small></span><progress aria-label={g.title+' 整体进度'} value={done} max={g.parts.length}/>{state==='working'&&g.parts.filter((p:any)=>!['SUCCESS','FAILED','CANCELLED'].includes(p.status)).slice(0,1).map((p:any)=><div className="vault-stage-detail" key={p.id}><strong>{labels[p.status]||'排队中'}</strong><span>{p.task?.progress?.message||p.task?.message||'等待处理'}</span>{p.task?.progress?.total_chunks&&<span>{p.task.progress.completed_chunks||0} / {p.task.progress.total_chunks} 步</span>}{typeof p.task?.progress?.percent==='number'&&<span>{p.task.progress.percent.toFixed(1)}%</span>}{p.task?.progress?.elapsed_seconds&&<span>已用时 {time(p.task.progress.elapsed_seconds)}</span>}</div>) }</div><div className="vault-video-tags"><select aria-label={'设置标签 '+g.title} value="" onChange={e=>{if(e.target.value)bindTags(g.bv,[...new Set([...(tagData.videos[g.bv]||[]),e.target.value])]).catch(()=>{})}}><option value="">＋ 标签</option>{Object.keys(tagData.tags).map(t=><option key={t}>{t}</option>)}</select>{(tagData.videos[g.bv]||[]).map(t=><button key={t} title={'移除标签 '+t} onClick={()=>bindTags(g.bv,tagData.videos[g.bv].filter(v=>v!==t)).catch(()=>{})}>{t} ×</button>)}</div><span className="vault-duration">{duration?time(duration):'待获取'}</span><time>{new Date(g.created).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</time><button className="vault-enter" aria-label={'打开 '+g.title} onClick={()=>openGroup(g)}><ArrowUpRight size={19}/></button></div>})}</div>
+            const total=batch.task_ids.length
+            const allCancelled=items.length>0&&items.every((p:any)=>p.status==='CANCELLED')
+            const state=done===total?'done':running||pending?'working':allCancelled?'cancelled':failed?'failed':'working'
+            return <div className="vault-row" role="row" key={batch.id}><button className="vault-title" onClick={()=>setBatchId(batch.id)}><span className={'vault-file '+state}><BookOpen size={23}/></span><span><strong title={batch.title}>{batch.title}</strong><small>{batch.inferred?'历史批次':'提交批次'} · {total} 项{failed?` · 失败 ${failed}`:''}{running?` · 处理中 ${running}`:''}{pending?` · 排队 ${pending}`:''}</small></span></button><div className={'vault-status '+state}><span><i/>{state==='done'?'已完成':state==='working'?'整理中':state==='cancelled'?'已停止':'需重试'}<small>{done}/{total}</small></span><progress aria-label={batch.title+' 整体进度'} value={done} max={total}/></div><span className="vault-duration">{total} 项</span><time>{new Date(batch.created_at*1000).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</time><button className="vault-enter" aria-label={'打开 '+batch.title} onClick={()=>setBatchId(batch.id)}><ArrowUpRight size={19}/></button></div>
+          })}</Fragment>)}</div>}
+          <div className="vault-table" style={{display:batchHome?'none':undefined}} role="table" aria-label="笔记管理"><div className="vault-table-head" role="row"><span>视频 / 笔记</span><span>整体状态</span><span>视频总时长</span><span>添加时间</span><span/></div>{pageTimeGroups.map(({label,items})=><Fragment key={label}><div className="vault-group-title" role="row"><span>{label}</span><span>{items.length} 个视频</span></div>{items.map(g=>{const done=g.parts.filter((p:any)=>p.status==='SUCCESS').length;const state=groupStatus(g);const duration=g.parts.reduce((n:number,p:any)=>n+Number(p.task?.audioMeta?.duration||p.duration||0),0);return <div className="vault-row" role="row" key={g.bv}><button className="vault-title" onClick={()=>openGroup(g)}><span className={'vault-file '+state}><BookOpen size={23}/></span><span><strong>{g.title}</strong><small>{g.bv} <b>·</b> {g.parts.length} 个分 P</small></span></button><div className={'vault-status '+state}><span><i/>{state==='done'?'已完成':state==='working'?'整理中':state==='cancelled'?'已停止':'需重试'}<small>{done}/{g.parts.length}</small></span><progress aria-label={g.title+' 整体进度'} value={done} max={g.parts.length}/>{state==='working'&&g.parts.filter((p:any)=>!['SUCCESS','FAILED','CANCELLED'].includes(p.status)).slice(0,1).map((p:any)=><div className="vault-stage-detail" key={p.id}><strong>{labels[p.status]||'排队中'}</strong><span>{p.task?.progress?.message||p.task?.message||'等待处理'}</span>{p.task?.progress?.total_chunks&&<span>{p.task.progress.completed_chunks||0} / {p.task.progress.total_chunks} 步</span>}{typeof p.task?.progress?.percent==='number'&&<span>{p.task.progress.percent.toFixed(1)}%</span>}{p.task?.progress?.elapsed_seconds&&<span>已用时 {time(p.task.progress.elapsed_seconds)}</span>}</div>) }</div><div className="vault-video-tags"><select aria-label={'设置标签 '+g.title} value="" onChange={e=>{if(e.target.value)bindTags(g.bv,[...new Set([...(tagData.videos[g.bv]||[]),e.target.value])]).catch(()=>{})}}><option value="">＋ 标签</option>{Object.keys(tagData.tags).map(t=><option key={t}>{t}</option>)}</select>{(tagData.videos[g.bv]||[]).map(t=><button key={t} title={'移除标签 '+t} onClick={()=>bindTags(g.bv,tagData.videos[g.bv].filter(v=>v!==t)).catch(()=>{})}>{t} ×</button>)}</div><span className="vault-duration">{duration?time(duration):'待获取'}</span><time>{new Date(g.created).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</time><button className="vault-enter" aria-label={'打开 '+g.title} onClick={()=>openGroup(g)}><ArrowUpRight size={19}/></button></div>})}</Fragment>)}</div>
           {!batchHome&&!batchGroups.length&&<div className="vault-empty"><BookOpen size={32}/><h2>{groups.length?'没有匹配的笔记':'你的下一次灵感，从这里开始'}</h2><p>{groups.length?'试试其他关键词或状态筛选。':'点击新建整理，添加第一条 B 站链接。'}</p></div>}
           {!batchHome&&batchGroups.length>30&&<div className="batch-pagination"><button disabled={batchPage<=1} onClick={()=>setBatchPage(p=>p-1)}>上一页</button><span>{batchPage} / {Math.ceil(batchGroups.length/30)} 页 · 每页 30 项</span><button disabled={batchPage*30>=batchGroups.length} onClick={()=>setBatchPage(p=>p+1)}>下一页</button></div>}
           <p className="vault-bottom-note">{visibleGroups.length} 个视频 · 点击标题打开笔记 <span>LESS WATCHING. MORE KEEPING.</span></p>

@@ -78,3 +78,34 @@ body{background:#060712!important}.mini-vault{background:radial-gradient(ellipse
 .mini-selection-row{display:flex;align-items:center}
 .mini-selection-row label{flex:1;min-width:0}
 .mini-selection-row>button{flex-shrink:0;margin-right:14px;padding:5px 8px;border:1px solid #9d7cbd88;border-radius:6px;font-size:11px;color:inherit}
+
+/* Explorer-like flat workbench: grouped by time, no outlined cards. */
+.mini-vault .submission-groups{margin-top:2px}
+.submission-group{margin:0 0 24px}
+.submission-group>h3{display:flex;align-items:baseline;gap:8px;margin:20px 0 8px;color:#b8c2df;font-size:12px;font-weight:650;letter-spacing:.02em}
+.submission-group:first-child>h3{margin-top:4px}
+.submission-group>h3 span{color:#707c9e;font-size:11px;font-weight:500}
+.mini-vault .submission-grid{gap:4px 18px;margin:0;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+.mini-vault .submission-card{border:0!important;background:transparent!important;box-shadow:none!important;padding:18px 20px;border-radius:12px;transition:background .16s}
+.mini-vault .submission-card .mini-eyebrow{display:none!important}
+.mini-vault .submission-card:hover{background:#181e30!important;transform:none}
+.mini-vault .submission-card h3{margin:0 0 6px}
+.mini-vault .submission-card progress{height:4px;margin:14px 0}
+.mini-vault .submission-card>strong{margin-top:14px}
+.mini-vault .batch-navigation button,.mini-vault .batch-pagination button{border:0!important;background:transparent!important;color:#b3a8ce;padding:6px 10px;border-radius:8px}
+.mini-vault .batch-navigation button:hover,.mini-vault .batch-pagination button:hover{background:#232a40!important;color:#e2d9f5}
+.mini-vault .batch-navigation button:disabled,.mini-vault .batch-pagination button:disabled{opacity:.4}
+.mini-vault .vault-add{border:0!important}
+.mini-vault .vault-stats{border:0!important}
+.mini-vault .vault-toolbar label,.mini-vault .vault-toolbar select{border:0!important;background:#151a2b!important;box-shadow:none!important;border-radius:9px}
+.mini-vault .vault-toolbar label:focus-within{box-shadow:0 0 0 2px #7a5bd455!important}
+.mini-vault .vault-table{border:0!important;background:transparent!important;box-shadow:none!important;border-radius:0!important}
+.mini-vault .vault-table-head{background:transparent!important;border-bottom:1px solid #2a3048}
+.mini-vault .vault-group-title{grid-column:1/-1;display:flex;align-items:baseline;gap:8px;padding:16px 0 4px;color:#b8c2df;font-size:12px;font-weight:650;letter-spacing:.02em}
+.mini-vault .vault-group-title span:last-child{color:#707c9e;font-size:11px;font-weight:500}
+.mini-vault .vault-row{border:0!important;border-radius:9px}
+.mini-vault .vault-row:hover{background:#181e30!important}
+.mini-vault .mini-input-card,.mini-vault .mini-selection,.mini-vault .mini-result,.mini-vault .mini-overall-bar,.mini-vault .mini-reader-dock,.mini-vault .mini-progress-details{border:0!important;box-shadow:none!important}
+.mini-vault .mini-chapter-list>.mini-chapter-card{border:0!important;background:transparent!important;box-shadow:none!important}
+.mini-vault .mini-chapter-list>.mini-chapter-card:hover{background:#181e30!important}
+.mini-vault .mini-chapter-list>.mini-chapter-card.current{background:#252038!important;box-shadow:none!important}

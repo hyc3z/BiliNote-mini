@@ -330,3 +330,10 @@ ffmpg*/
 # Mini local validation artifacts
 **/.build-tmp/
 **/pip-*/
+/pip-*/
+/backend/tmp*.txt
+
+# Packaging output and signing material
+/dist/release/
+/packaging/keys/
+/packaging/vendor/uv.exe

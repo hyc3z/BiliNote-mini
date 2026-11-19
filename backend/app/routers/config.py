@@ -1,5 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+import requests
+
 from app.services.cookie_manager import CookieConfigManager
 from app.services.transcriber_config_manager import TranscriberConfigManager
 from app.services.mini_preferences import get_preferences, save_preferences
@@ -17,9 +20,56 @@ def get_cookie(platform:str):
 
 @router.post('/update_downloader_cookie')
 def save_cookie(data:CookieRequest):
-    if data.platform!='bilibili':raise HTTPException(422,'仅支持 B 站')
+    if data.platform not in ('bilibili','youtube'):
+        raise HTTPException(422,'仅支持 B 站 / YouTube')
     CookieConfigManager().set(data.platform,data.cookie)
     return R.success()
+
+def _bilibili_login_status(cookie: str) -> dict:
+    if not cookie:
+        return {'configured': False, 'isLogin': False}
+    try:
+        response = requests.get(
+            'https://api.bilibili.com/x/web-interface/nav',
+            headers={
+                'User-Agent': (
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                    '(KHTML, like Gecko) Chrome/131.0 Safari/537.36'
+                ),
+                'Referer': 'https://www.bilibili.com',
+                'Cookie': cookie,
+            },
+            timeout=10,
+        )
+        payload = response.json()
+    except Exception as exc:
+        return {'configured': True, 'isLogin': False, 'error': str(exc)}
+    data = payload.get('data') or {}
+    return {
+        'configured': True,
+        'isLogin': bool(data.get('isLogin')),
+        'code': payload.get('code'),
+        'message': payload.get('message'),
+    }
+
+@router.get('/account_status')
+def account_status(platform: str):
+    """按平台返回 Cookie 配置/登录状态；不返回 Cookie 或账号名。"""
+    cookie = CookieConfigManager().get(platform) or ''
+    if platform == 'bilibili':
+        return R.success(data=_bilibili_login_status(cookie))
+    if platform == 'youtube':
+        return R.success(data={
+            'configured': bool(cookie),
+            'isLogin': None,
+            'message': '已保存 YouTube Cookie' if cookie else '',
+        })
+    raise HTTPException(422, '仅支持 B 站 / YouTube')
+
+@router.get('/bilibili_login_status')
+def bilibili_login_status():
+    """兼容旧调用方；新代码使用 /account_status。"""
+    return R.success(data=_bilibili_login_status(CookieConfigManager().get('bilibili') or ''))
 
 @router.get('/transcriber_config')
 def transcriber_config():

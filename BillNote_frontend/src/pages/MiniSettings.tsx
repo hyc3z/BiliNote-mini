@@ -3,9 +3,13 @@ import { Link } from 'react-router-dom'
 import request from '@/utils/request'
 import { addModel, addProvider, updateProviderById } from '@/services/model'
 
+const DEEPSEEK_BASE = 'https://api.deepseek.com'
+const DEEPSEEK_MODEL = 'deepseek-chat'
+
 export default function MiniSettings() {
-  const [form, setForm] = useState({ base_url: '', api_key: '', model_name: '', cookie: '', whisper_model_size: 'small', device: 'cpu' })
+  const [form, setForm] = useState({ base_url: DEEPSEEK_BASE, api_key: '', model_name: DEEPSEEK_MODEL, cookie: '', whisper_model_size: 'small', device: 'cpu' })
   const [id, setId] = useState('')
+  const [hasKey, setHasKey] = useState(false)
   const [terms,setTerms]=useState('')
   const [tagName,setTagName]=useState('数码')
   const [tagLists,setTagLists]=useState<Record<string,string[]>>({})
@@ -19,7 +23,15 @@ export default function MiniSettings() {
     Promise.all([request.get('/get_all_providers'), request.get('/model_list'), request.get('/transcriber_config'), request.get('/get_downloader_cookie/bilibili'), request.get('/mini_preferences')]).then(([providers, models, transcriber, cookie, prefs]: any[]) => {
       const provider = providers.find((p: any) => p.name === 'Mini 默认模型')
       setId(provider?.id || '')
-      setForm(f => ({ ...f, base_url: provider?.base_url || '', model_name: models.find((m: any) => m.provider_id === provider?.id)?.model_name || '', whisper_model_size: transcriber.whisper_model_size, cookie: cookie?.cookie || '', device: prefs.device }))
+      setHasKey(Boolean(String(provider?.api_key || '').replace(/\*/g, '').trim()))
+      setForm(f => ({
+        ...f,
+        base_url: provider?.base_url || DEEPSEEK_BASE,
+        model_name: models.find((m: any) => m.provider_id === provider?.id)?.model_name || DEEPSEEK_MODEL,
+        whisper_model_size: transcriber.whisper_model_size,
+        cookie: cookie?.cookie || '',
+        device: prefs.device,
+      }))
       setReady(true)
     }).catch(() => setMessage('设置读取失败，请刷新重试。'))
   }, [])
@@ -44,8 +56,9 @@ export default function MiniSettings() {
   return <main className="mini-settings-page"><header className="mb-6 flex justify-between"><div><p className="mini-eyebrow">PERSONAL WORKSPACE</p><h1 className="text-2xl font-semibold">模型与设置</h1></div><Link to="/">返回首页</Link></header>
     <form onSubmit={save} className="space-y-5">
       <label className="block">模型接口地址<input required type="url" className="mt-2 w-full rounded border p-3" placeholder="https://接口地址/v1" value={form.base_url} onChange={e => field('base_url', e.target.value)} /></label>
-      <label className="block">API 密钥<input required={!id} type="password" autoComplete="off" className="mt-2 w-full rounded border p-3" placeholder={id ? '留空保留原密钥' : '输入密钥'} value={form.api_key} onChange={e => field('api_key', e.target.value)} /></label>
-      <label className="block">模型名称<input required className="mt-2 w-full rounded border p-3" value={form.model_name} onChange={e => field('model_name', e.target.value)} /></label>
+      <p className="text-sm text-neutral-500">默认已填入 DeepSeek；也可以换成任意兼容 OpenAI 的接口。</p>
+      <label className="block">API 密钥<input required={!hasKey} type="password" autoComplete="off" className="mt-2 w-full rounded border p-3" placeholder={hasKey ? '留空保留原密钥' : '输入 DeepSeek API Key'} value={form.api_key} onChange={e => field('api_key', e.target.value)} /></label>
+      <label className="block">模型名称<input required className="mt-2 w-full rounded border p-3" placeholder="deepseek-chat" value={form.model_name} onChange={e => field('model_name', e.target.value)} /></label>
       <label className="block">本地转录模型<select className="ml-4 rounded border p-2" value={form.whisper_model_size} onChange={e => field('whisper_model_size', e.target.value)}>{['tiny', 'base', 'small', 'medium', 'large-v3', 'large-v3-turbo'].map(m => <option key={m}>{m}</option>)}</select></label>
       <label className="block">转录设备<select className="ml-4 rounded border p-2" value={form.device} onChange={e => field('device', e.target.value)}><option value="cpu">CPU</option><option value="cuda">NVIDIA GPU（需要 CUDA 运行库）</option></select></label>
       <p className="text-sm text-neutral-500">只有无字幕任务才会加载转录模型，首次使用会下载模型。</p>

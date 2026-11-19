@@ -5,11 +5,13 @@ import tempfile
 from abc import ABC
 from typing import Union, Optional, List
 
+import requests
 import yt_dlp
 
 from app.downloaders.base import Downloader, DownloadQuality, QUALITY_MAP, YDL_RETRY_OPTS
 from app.downloaders.bilibili_dm_patch import apply_bilibili_dm_img_patch
 from app.downloaders.bilibili_subtitle import BilibiliSubtitleFetcher
+from app.downloaders.ffmpeg import get_ffmpeg_location
 from app.models.notes_model import AudioDownloadResult
 from app.models.transcriber_model import TranscriptResult, TranscriptSegment
 from app.utils.path_helper import get_data_dir
@@ -87,9 +89,26 @@ class BilibiliDownloader(Downloader, ABC):
         }
         if self._cookiefile:
             ydl_opts['cookiefile'] = self._cookiefile
+        ffmpeg_location = get_ffmpeg_location()
+        if ffmpeg_location:
+            ydl_opts['ffmpeg_location'] = ffmpeg_location
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(video_url, download=not skip_download)
+            try:
+                info = ydl.extract_info(video_url, download=not skip_download)
+            except yt_dlp.utils.DownloadError as exc:
+                message = str(exc)
+                # 充电专属/会员内容在没有权限时只会返回预览格式（durl），
+                # 没有独立音轨，bestaudio 选择器就会报这个很模糊的错误。
+                if "Requested format is not available" in message:
+                    raise RuntimeError(self._describe_format_failure(video_url)) from exc
+                if "supporter-only video" in message:
+                    raise RuntimeError(
+                        "该视频为充电专属/会员内容，当前 B 站账号无权观看。"
+                        "请在设置里更新 B 站 Cookie；若已登录仍失败，需要先开通对应 UP 的充电。\n"
+                        + message
+                    ) from exc
+                raise
             video_id = info.get("id")
             title = info.get("title")
             duration = info.get("duration", 0)
@@ -107,6 +126,65 @@ class BilibiliDownloader(Downloader, ABC):
             video_id=video_id,
             raw_info=info,
             video_path=None  # ❗音频下载不包含视频路径
+        )
+
+    def _describe_format_failure(self, video_url: str) -> str:
+        """把 yt-dlp 的 format 错误翻译成能指导用户下一步的中文提示。"""
+        if not self._cookie:
+            return "B 站没有返回可用音轨，且当前未配置 B 站 Cookie。请在设置里填写 B 站 Cookie 后重试。"
+
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36"
+            ),
+            "Referer": "https://www.bilibili.com",
+            "Cookie": self._cookie,
+        }
+
+        # 先确认保存的 Cookie 是否还有登录态；过期后 B 站会降级成预览格式。
+        try:
+            nav = requests.get(
+                "https://api.bilibili.com/x/web-interface/nav", headers=headers, timeout=10
+            ).json()
+            if not (nav.get("data") or {}).get("isLogin"):
+                return (
+                    "当前保存的 B 站 Cookie 未登录或已失效，B 站没有返回可用音轨。"
+                    "请在设置里重新从已登录的浏览器复制 B 站 Cookie 后重试；"
+                    "若视频是充电专属，更新 Cookie 后仍需账号本身有对应观看权限。"
+                )
+        except Exception as exc:
+            logger.warning("查询 B 站登录状态失败：%s", exc)
+
+        bvid = extract_video_id(video_url, "bilibili")
+        if bvid:
+            try:
+                response = requests.get(
+                    "https://api.bilibili.com/x/web-interface/view",
+                    params={"bvid": bvid},
+                    headers=headers,
+                    timeout=10,
+                )
+                data = (response.json() or {}).get("data") or {}
+                exclusive = bool(data.get("is_upower_exclusive"))
+                playable = bool(data.get("is_upower_play"))
+                if exclusive and not playable:
+                    return (
+                        "该视频是「UP 主充电专属」，当前 B 站账号没有观看权限，"
+                        "B 站只返回了预览格式、没有完整音轨。"
+                        "请确认账号已开通该 UP 的充电后重试；Cookie 失效时也会出现同样提示。"
+                    )
+                if exclusive and playable:
+                    return (
+                        "该视频是充电专属，账号有观看权限，但 B 站没有返回独立音轨（可能只给了预览格式）。"
+                        "请更新 B 站 Cookie 或稍后重试。"
+                    )
+            except Exception as exc:
+                logger.warning("查询视频可访问性失败（%s）：%s", bvid, exc)
+
+        return (
+            "B 站没有返回可用音轨（常见原因：视频为充电专属/会员内容、B 站 Cookie 已过期，或视频受限）。"
+            "请在设置里更新 B 站 Cookie 后重试；充电专属视频需要账号本身有观看权限。"
         )
 
     def download_video(
@@ -143,6 +221,9 @@ class BilibiliDownloader(Downloader, ABC):
         }
         if self._cookiefile:
             ydl_opts['cookiefile'] = self._cookiefile
+        ffmpeg_location = get_ffmpeg_location()
+        if ffmpeg_location:
+            ydl_opts['ffmpeg_location'] = ffmpeg_location
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=True)

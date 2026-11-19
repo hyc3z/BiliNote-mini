@@ -1,5 +1,7 @@
 import re
 from typing import Optional
+from urllib.parse import parse_qs, urlparse
+
 import requests
 
 
@@ -56,6 +58,31 @@ def normalize_video_url(url: str) -> str:
     if p:
         normalized += f"?p={p}"
     return normalized
+
+
+def normalize_youtube_url(url: str) -> str:
+    """把 YouTube 播放列表/分享链接收敛成单个视频地址，不带 list/index 等参数。"""
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+
+    if host == "youtu.be":
+        video_id = parsed.path.strip("/").split("/")[0] if parsed.path.strip("/") else ""
+        return f"https://www.youtube.com/watch?v={video_id}" if video_id else url
+
+    if host in (
+        "youtube.com",
+        "www.youtube.com",
+        "m.youtube.com",
+        "youtube-nocookie.com",
+        "www.youtube-nocookie.com",
+    ):
+        video_id = (parse_qs(parsed.query).get("v") or [None])[0]
+        if video_id:
+            return f"https://www.youtube.com/watch?v={video_id}"
+        match = re.match(r"^/(shorts|live|embed)/([^/?#]+)", parsed.path)
+        if match:
+            return f"https://www.youtube.com/{match.group(1)}/{match.group(2)}"
+    return url
 
 
 def resolve_bilibili_short_url(short_url: str) -> Optional[str]:

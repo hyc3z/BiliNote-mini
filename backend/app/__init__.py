@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from .routers import note, provider, model, config, comments
+from .routers import note, provider, model, config, comments, zhihu
 
 
 
@@ -11,6 +11,7 @@ def create_app(lifespan) -> FastAPI:
     app.include_router(model.router,prefix="/api")
     app.include_router(config.router,  prefix="/api")
     app.include_router(comments.router,prefix="/api")
+    app.include_router(zhihu.router,prefix="/api")
     # Mini does not load the vector search / chat subsystem.
 
     from pathlib import Path
