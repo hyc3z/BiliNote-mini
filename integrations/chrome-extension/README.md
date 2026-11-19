@@ -4,7 +4,7 @@
 
 在知乎问题页还支持 **按需判断**：选中一句话/一段字、右键一条回答、或右键问题标题，页面内直接弹出类似词典的小卡片，判断这段话/这条回答/这个问题是否合理；不预加载、不整篇总结、不保存。
 
-![工具栏弹窗](docs/popup.png)
+> README 不使用真实任务截图；界面演示请用 mock 数据自行生成。
 
 ## 安装
 
@@ -74,7 +74,6 @@ icons/             默认 BiliNote 图标
 icons/youtube/     YouTube 页面图标
 icons/bilibili/    B 站页面图标
 icons/zhihu/       知乎页面图标
-docs/popup.png     弹窗截图
 tools/make-icons.py 图标生成
 ```
 

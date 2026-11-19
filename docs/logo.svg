@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="180" viewBox="0 0 840 180" role="img" aria-label="BiliNote Mini">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="0.55" stop-color="#8b5cf6"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+  <rect x="22" y="32" width="116" height="116" rx="30" fill="#171326"/>
+  <rect x="26" y="36" width="108" height="108" rx="27" fill="url(#g)" opacity="0.95"/>
+  <path d="M91 52 L58 110 H84 L70 144 L110 84 H85 Z" fill="#ffffff"/>
+  <text x="168" y="83" fill="#111827" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="42" font-weight="700" letter-spacing="-1">BiliNote</text>
+  <text x="171" y="112" fill="#6b7280" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="24" font-weight="500" letter-spacing="2">MINI</text>
+  <text x="171" y="143" fill="#8b5cf6" font-family="Segoe UI, Microsoft YaHei, Arial, sans-serif" font-size="14" letter-spacing="1.5">LOCAL VIDEO NOTES · QUICK SUMMARY</text>
+  <line x1="168" y1="124" x2="816" y2="124" stroke="#ede9fe" stroke-width="2"/>
+</svg>

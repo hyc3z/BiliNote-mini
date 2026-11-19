@@ -1,41 +1,57 @@
-# BiliNote Mini
+<p align="center">
+  <img src="docs/logo.svg" width="760" alt="BiliNote Mini" />
+</p>
 
-个人使用的 B 站回放笔记工具：字幕优先，无字幕时获取音轨并本地转录，再调用 DeepSeek 等兼容 OpenAI 的接口总结。保留时间戳、逐字稿、本地搜索和聊天工具接口。
+<p align="center">
+  <strong>Local-first video notes, transcripts and quick summaries.</strong><br />
+  Windows installer · Chrome extension · Bilibili / YouTube / Instagram / Zhihu
+</p>
 
-![工作台](docs/workbench.png)
+<p align="center">
+  <a href="https://github.com/hyc3z/BiliNote-mini/releases/tag/v0.7.6">v0.7.6</a>
+  ·
+  <a href="integrations/chrome-extension/README.md">Chrome extension 0.6.4</a>
+  ·
+  <a href="LICENSE">License</a>
+</p>
 
-## Windows 安装（推荐）
+<p align="center">
+  <a href="#简体中文">简体中文</a> · <a href="#english">English</a>
+</p>
 
-发布包在 `dist/release/`：
+---
 
-- `BiliNoteMini-Setup-0.7.6.exe`：自解压安装程序，按用户安装，不需要管理员权限；
-- `BiliNoteMini-0.7.6-Setup.zip`：同内容的 ZIP；双击 `install.cmd` 也能安装；
-- `BiliNoteMini-Extension-0.6.4.crx` / `.zip`：Chrome 扩展。
+## 简体中文
 
-双击 Setup 后：
+### 这是什么
 
-1. 默认安装到 `%LOCALAPPDATA%\BiliNote Mini`；
-2. 自动创建桌面/开始菜单快捷方式和通知区域图标；
-3. 默认写入 `HKCU\...\Run` 实现开机自启动（安装时可以在任务页取消）；如果 HKCU 被策略拒绝，会自动改用在“任务计划程序”里创建 `BiliNoteMini` 的登录任务；
-4. 首次安装会用包内自带的 `uv` 下载 Python 3.12 并安装依赖，**不需要预先安装 Python**，但需要联网；
-5. 安装程序直接解压到安装目录，不使用 `%TEMP%` 做自解压，避免部分机器 Temp 权限/安全软件导致的 `is-*.tmp` 错误；
-6. 如果 `%LOCALAPPDATA%\BiliNote Mini` 被安全软件/ACL 锁定，安装器会自动尝试 `%LOCALAPPDATA%\BiliNoteMini`、`%APPDATA%\BiliNoteMini`、用户目录、文档、桌面、当前目录，最后自动请求管理员权限；也可以手动指定：
-   ```powershell
-   BiliNoteMini-Setup-0.7.6.exe /DIR=C:\BiliNoteMini
-   ```
-7. 安装完成后自动启动原生托盘 `BiliNoteMiniTray.exe`；右键可打开工作台、打开日志、重启后端、开关自启动或退出。
-8. Windows 11 默认把新托盘图标放进任务栏右下角的 `^` 溢出区，可点开 `^` 找到并拖到常显区。
-9. 如果系统连 Desktop/AppData/HKCU 都禁止写入，安装器会装到唯一可写目录，并生成 `Start-BiliNoteMini.cmd` / `Open-BiliNoteMini.cmd` / `Stop-BiliNoteMini.cmd`；此时托盘仍会启动，但快捷方式和开机自启动会被跳过。需要放开这些权限或安全软件白名单后重装，才能恢复自启动。
+BiliNote Mini 是一个本地优先的视频笔记工具。它优先读取 B 站字幕；没有字幕时下载音轨并用本地 Whisper 转录，再调用兼容 OpenAI 的接口生成带时间戳的中文笔记、逐字稿和摘要。数据保存在本机，只有文字总结会发送到你配置的模型接口。
 
-如果 Setup.exe 被 SmartScreen/企业策略拦截，解压 `BiliNoteMini-0.7.6-Setup.zip` 后双击 `install.cmd` 即可，内容是同一套文件和运行时。
+### 功能
 
-托盘不是 Windows Service：它需要和当前登录用户的通知区域交互，所以采用“用户登录后自启动 + 托盘进程”的方式，退出托盘会一并停止后端。数据/配置/模型在安装目录的 `backend\data`、`backend\config`、`backend\models`。
+- **B 站**：字幕优先、多分 P / 合集选择、批量整理、评论采集与分析。
+- **YouTube / Instagram**：单个视频 / Shorts / Reels；无字幕时走音频转录。
+- **本地资料库**：标题、摘要、逐字稿全文搜索；支持按时间归组、批量视图与深链 `#task=<id>`。
+- **术语校正**：为视频绑定领域词表，校正逐字稿后重新总结。
+- **Chrome 扩展**：B 站 / YouTube 右键“省流不看”；工具栏徽标显示未完成任务数量，完成后显示 ✓。
+- **知乎判断**：问题页右键“BiliNote 判断”，自动按选中文字 / 回答 / 问题判断，页面内显示结论、可取之处、不足之处、值得思考点和需核实项。
+- **Windows 托盘**：原生 `BiliNoteMiniTray.exe`，管理后端、打开工作台、查看日志、开关自启动和退出；安装器支持开机登录任务。
+- **模型设置**：默认填入 DeepSeek 接口 `https://api.deepseek.com` 和模型 `deepseek-chat`，也可以改成其他兼容 OpenAI 的接口。
 
-升级时重新运行新版本 Setup 即可；安装脚本会先停止旧后端，保留运行时数据。卸载可在 Windows“应用”里进行，或运行安装目录的 `packaging\uninstall.ps1`（`-PurgeData` 会连数据一起删除）。
+### Windows 安装（推荐）
 
-## 开发启动
+从 [Releases](https://github.com/hyc3z/BiliNote-mini/releases/tag/v0.7.6) 下载：
 
-Windows 使用 64 位 Python 3.11/3.12、Node.js 和 pnpm。
+- `BiliNoteMini-Setup-0.7.6.exe`：按当前用户安装，不需要管理员权限；
+- `BiliNoteMini-0.7.6-Setup.zip`：ZIP 备用安装包，解压后运行 `install.cmd`。
+
+安装器会把程序放到 `%LOCALAPPDATA%\BiliNote Mini`（若目录被安全策略拒绝，会自动尝试其他可写目录或提示用 `/DIR=` 指定），使用内置 `uv` 准备 Python 3.12 和依赖，创建 `Start-BiliNoteMini.cmd` / `Open-BiliNoteMini.cmd` / `Stop-BiliNoteMini.cmd`，并尝试创建托盘和登录自启动。
+
+Windows 11 新托盘图标默认在任务栏右下角的 `^` 溢出区；也可以在“设置 → 个性化 → 任务栏 → 其他系统托盘图标”里打开。若机器禁止写 Desktop / AppData / HKCU，快捷方式和自启动可能被跳过；安装器会打印警告，此时使用安装目录里的启动脚本即可。
+
+### 开发启动
+
+需要 64 位 Python 3.11/3.12、Node.js 和 pnpm。
 
 ```powershell
 cd backend
@@ -47,151 +63,178 @@ cd ..
 .\start-mini.ps1
 ```
 
-打开 http://127.0.0.1:3015 ，在设置中填写 DeepSeek 的 API Key；接口地址和模型名称已默认填好 `https://api.deepseek.com` / `deepseek-chat`，也可以改成其它兼容 OpenAI 的接口。必要时填写 B 站 Cookie。凭据仅在本地保存，请勿提交配置文件。
+打开 `http://127.0.0.1:3015`。安装版由后端在 `http://127.0.0.1:8483` 直接托管前端。
 
-后端通过 `imageio-ffmpeg` 自带 ffmpeg（已写入 `requirements.txt`），不需要单独安装系统 ffmpeg；如果你更想用系统版本，可设置 `FFMPEG_LOCATION` 指向 ffmpeg 可执行文件。
+后端通过 `imageio-ffmpeg` 自带 ffmpeg，不需要单独安装系统 ffmpeg；也可以设置 `FFMPEG_LOCATION` 指向系统二进制。NVIDIA GPU 可额外安装 `backend/requirements-gpu.txt`，然后在设置里选择 GPU。
 
-NVIDIA GPU 可额外安装 `backend/requirements-gpu.txt`，然后在设置中选择 GPU。首次使用需要下载转录模型；下载、加载、转录与总结分别显示阶段信息。下载失败可保留断点重试，或清理当前模型下载缓存后重试。运行日志在 `backend/logs`。
+### 配置
 
-## 视频选集与批量整理
+- 模型接口地址默认 `https://api.deepseek.com`；
+- 模型名称默认 `deepseek-chat`；
+- 首次使用只需填写自己的 DeepSeek API Key；
+- B 站 Cookie 可在设置页手动填写，或在 Chrome 扩展弹窗里点“同步”；
+- 数据、配置、模型和日志都在 `backend/data`、`backend/config`、`backend/models`、`backend/logs`。
 
-粘贴 BV 号或链接后会自动读取选集，显示各项标题、时长和已选总时长，默认勾选全部。可取消个别条目，或使用全选/清空，然后点击“整理选中 N 项”。同一 BV 的多分 P 优先展示全部分 P；单 P 视频所属的多 BV 合集也会展开。
+### Chrome 扩展
 
-每项独立保存并串行处理，重复提交会复用已有笔记或正在执行的任务。不限制一次选择的数量，所有选中条目进入本地队列串行处理。即使链接带 `?p=2`，初次解析也会默认选中这个 BV 的全部分 P；重试已有任务仍然只处理该任务。
+扩展源码在 [`integrations/chrome-extension`](integrations/chrome-extension)。安装方式：
 
-解析只读取元数据，不会自动下载或调用总结 API；点击整理才开始处理。B 站访问限制或不完整的合集信息可能导致解析失败，可补充 Cookie 后重试。截图本身不包含 BV，请粘贴原视频链接。
+- 解压 `BiliNoteMini-Extension-0.6.4.zip`，在 `chrome://extensions` 以“加载已解压的扩展程序”加载；
+- 或使用本地构建的 CRX。Chrome 对商店外 CRX 有限制，ZIP 方式更稳定。
 
-## 型号识别与校正
+默认后端地址 `http://127.0.0.1:8483`，安装版工作台也是 `http://127.0.0.1:8483`；开发时可在扩展选项里改成 `3015`。详细说明见扩展 README。
 
-设置中的数码术语表会作为 Whisper 的 initial_prompt / hotwords 提示，用于新转录；不是强制替换，也不保证识别正确。修改词表不会重新转录已有缓存。
-
-已有逐字稿可点击“校正术语”：填写错误词与正确词 → 预览原句 → 确认本篇替换 → 点击右上角“重新总结”。例如将本篇确认过的 `8.15` 改为 `8E5`。不会将同一规则自动应用到其他视频。
-
-原始转录保存在 `*_transcript.original.json`，校正记录保存在逐字稿 raw.corrections；旧摘要保留并标记待更新。请先听原片核对歧义型号，避免误改日期、价格等数字。
-
-## 本地资料
-
-- `backend/data/library.sqlite3`：完成的笔记与逐字稿，可搜索标题、摘要和正文。
-- `backend/note_results`：结果 JSON、Markdown、带时间戳 TXT、逐字稿缓存和总结检查点。
-- `backend/config`：本地设置；`backend/models`：模型权重。
-- 最近整理支持右键菜单或省略号删除。进行中的任务不能删除。共享模型和转录缓存不会随单篇笔记删除。
-
-重新总结复用当前任务的逐字稿，校正后的内容会进入新的总结。字幕、转录和总结仍可能有误，没有说话人分离。
-
-## 聊天调用
-
-```powershell
-backend\.venv\Scripts\python.exe -m pip install -r backend/requirements-mcp.txt
-codex mcp add bilinote-mini --env PYTHONUTF8=1 --env PYTHONIOENCODING=utf-8 -- C:\Users\Administrator\source\BiliNote-mini\backend\.venv\Scripts\python.exe C:\Users\Administrator\source\BiliNote-mini\backend\mcp_server.py
-```
-
-重启聊天客户端后可用 search_notes、read_note、find_geekerwan_replays、inspect_replay、prepare_replays、get_replay_jobs。按需发现回放、枚举分 P、读取缓存或发起处理，没有定时检查。默认切片 UP 主 UID 为 2090606494，可在调用时指定。
-
-B 站 UP 列表可能被风控拦截；此时返回缓存和告警，不能保证找到完整的最新回放。可以直接提供 BV 链接。后台处理串行执行，网页与聊天共用本地资料。总结会使用已配置的收费 API。
-
-## 代码范围
-
-前端仅 React/Vite 工作台和设置；后端仅 B 站、faster-whisper、兼容 OpenAI 的总结、本地 SQLite 和可选 MCP。已移除其他平台、桌面壳、截图、向量聊天、其他转录引擎和旧部署资源。浏览器扩展单独放在 `integrations/chrome-extension`（可选，不参与工作台构建）。`requirements-mini.txt` 仅为兼容旧安装命令的入口。
-
-## 验证
-
-```powershell
-cd backend
-.\.venv\Scripts\python.exe -m unittest discover -s tests -p 'test_*.py'
-.\.venv\Scripts\python.exe tests/check_mcp_connection.py
-cd ../BillNote_frontend
-pnpm exec tsc -p tsconfig.app.json --noEmit
-pnpm build
-```
-
-保留上游 LICENSE。
-
-
-### 批量并行
-
-默认最多 3 个任务并行，下载与在线总结可交错执行，本地转录使用跨进程锁保持单任务。`MINI_TASK_CONCURRENCY=1` 可恢复串行，允许范围 1–6；修改后重启后端和队列工作进程。
-
-## 评论区分析
-
-笔记页提供独立的“评论区分析”Tab。同一 BV 的分 P 共用评论快照，保存于 backend/data/comments.sqlite3。可设置最多 100–5000 条、热度/时间顺序和是否包含楼中楼。重新采集会刷新该 BV 的快照并清空旧分析；采集中断会保留已取得的部分数据。
-
-统计包括采集数、主评论、楼中楼、参与账号数、累计获赞及发布时间分布，支持原文搜索与 JSON 导出。完整标记仅表示遍历了本次接口可见分页，不保证覆盖平台所有评论。
-
-LLM 分析单独点击触发，使用工作台所选模型与现有密钥。最多选择 100–1000 条高赞与均匀混合样本，分批生成主题、赞同/反对、纠错补充及原评 ID；分析中显示批次进度。不会自动发送全部评论。服务重启后进行中的评论任务需手动重试，已保存内容仍可读取。
-
-## YouTube 与 Instagram
-
-输入框支持 YouTube 单个视频（watch/Shorts/live 回放）及 Instagram 视频帖/Reels 链接，自动识别来源并在笔记标题下显示来源标签。使用本地 Whisper 自动识别音频语言，调用已配置的文字模型生成中文笔记。外站当前走音频转录；B 站保留原有字幕优先与多分 P 选择。
-
-外站暂不支持播放列表、正在直播的视频、评论采集或自动登录。Instagram 无独立音轨时可能需要获取含画面的媒体文件。私密、登录要求、地区限制及平台反爬可能导致获取失败，页面会显示原因。Instagram 原片链接跳回视频，不能承诺定位到秒。截图与笔记仍保存在本地。
-
-## Chrome 右键省流与知乎判断
-
-`integrations/chrome-extension` 提供 Chrome MV3 扩展：
-
-- 在 B 站 / YouTube 视频页右键 **省流不看**，调用本地 `/api/generate_note` 排队生成笔记；
-- 在知乎问题页右键只有一个 **BiliNote 判断**：有选中文字就判断选中内容，否则自动判断当前回答或问题本身；
-- 工具栏图标随页面在 BiliNote / YouTube / B 站 / 知乎之间切换，徽标显示**未完成任务数量**或 ✓/!；
-- 点图标打开弹窗：进行中原生进度，已完成直接展示“省流：……”摘要，失败显示原因；悬浮卡片右上角 × 可只从扩展列表移除；
-- 任务记录保存在扩展本地，只保留进行中与最近 20 条；摘要通过 `/api/task_summary/{id}` 读取，不保存逐字稿到扩展。
-
-安装方式：
-
-- **CRX**：`dist/release/BiliNoteMini-Extension-0.6.4.crx`。Chrome 对商店外 CRX 有额外限制，无法安装时用下面两种；
-- **ZIP/解压**：解压 `dist/release/BiliNoteMini-Extension-0.6.4.zip`，打开 `chrome://extensions` → 开发者模式 → 加载已解压的扩展程序；
-- **开发目录**：直接加载 `integrations/chrome-extension`。
-
-在扩展选项里确认后端地址（默认 `127.0.0.1:8483`）和工作台地址（默认 `127.0.0.1:8483`，安装版由后端托管前端）。弹窗按当前页面显示平台登录（B 站 / YouTube），点 **同步** 一键从 Chrome 更新对应平台 Cookie。工作台深链 `#task=<id>` 可直接打开对应报告。
-
-## 打包发布
-
-在项目根目录运行：
+### 构建与发布
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File packaging\build-release.ps1
 ```
 
-会依次：
+会构建前端、原生托盘、安装器、安装 ZIP 和扩展 ZIP/CRX。产物在 `dist/release/`。首次构建会下载 `uv.exe` 到 `packaging/vendor/`；CRX 私钥保存在 `packaging/keys/`，不会提交到仓库。
 
-1. 用 pnpm 构建 `BillNote_frontend/dist`；
-2. 打包后端源码、前端成品、托盘脚本、扩展和安装脚本到 `.build-tmp/payload`；
-3. 生成 `dist/release/BiliNoteMini-<version>-Setup.zip`；
-4. 用内置 csc 编译 `BiliNoteMini-Setup-<version>.exe`（安装程序把 payload 嵌在自身，直接解压到安装目录，不使用临时目录）；
-5. 生成扩展 ZIP 和 CRX（CRX 私钥保存在 `packaging/keys/bilinote-extension.pem`，已忽略，不要公开；更换私钥会改变扩展 ID）。
-
-可加 `-SkipFrontend` / `-SkipInstaller` / `-SkipExtension` 单独构建。首次构建会自动下载 `uv.exe` 到 `packaging/vendor`。
-
-托盘入口是 `packaging/tray.py`，安装包会把它放到 `packaging\tray.py` 并用 `pythonw.exe` 启动。无图形界面的冒烟测试：
+HTML/JS 校验：
 
 ```powershell
-backend\.venv\Scripts\python.exe packaging\tray.py --check
+cd BillNote_frontend
+pnpm exec tsc -p tsconfig.app.json --noEmit
+pnpm build
 ```
 
-## 目录结构
+后端测试：
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p 'test_*.py'
+```
+
+### 目录结构
 
 ```text
-backend/                 FastAPI 后端、转录、下载、SQLite
-BillNote_frontend/       React/Vite 工作台；dist 由后端托管
-integrations/chrome-extension/  Chrome 扩展源码与图标
-packaging/               托盘、安装/卸载、打包脚本、uv 与图标
-docs/                    工作台截图等文档资源
-scripts/                 构建辅助脚本
-dist/release/            安装包、扩展包（发布产物）
-backend/data|config|logs|models|note_results/  运行时数据
+backend/                         FastAPI 后端、下载、转录、SQLite
+BillNote_frontend/               React/Vite 工作台
+integrations/chrome-extension/   Chrome 扩展
+packaging/                       托盘、安装器、构建脚本
+docs/                            Logo 等文档资源
+dist/release/                    发布产物（本地生成）
 ```
 
-## DeepSeek Harness 插件构建
+### 隐私
 
-在 BillNote_frontend 运行 pnpm build，会同时生成前端和插件目录 dist/deepseek-harness/bilinote-mini，以及同目录下的 hyc3z-dsh-bilinote-mini-0.1.0.tgz。此包绑定构建机器上的项目路径，复用 Python 虚拟环境、模型和数据，不包含用户凭据。
+- 视频、音频、Cookie、配置和笔记只保存在本机；不会自动上传到第三方服务。
+- 文字总结和知乎判断会发送到你配置的模型供应商，这是功能本身所需。
+- 仓库不包含用户截图、Cookie、API Key 或 CRX 私钥；README 使用 Logo 和文字，不使用真实浏览/任务数据。
+- 运行数据目录（`backend/data`、`config`、`logs`、`models`、`note_results`）已加入忽略规则。
 
-在 Harness 的插件管理中安装生成的本地组合包；CLI 示例：`dsh plugin --profile 你的配置名 add C:/Users/Administrator/source/BiliNote-mini/dist/deepseek-harness/hyc3z-dsh-bilinote-mini-0.1.0.tgz`。配置名应使用当前 Harness 的 profile，不要直接编辑 profile 文件。
+### License
 
-启用后在聊天输入区展开“BiliNote 工作台”即可操作。插件自动复用或启动本地 8483 后端，前端成品由后端托管，无需另开 Vite。首次配置仍需安装 backend/requirements.txt 和可选的 requirements-mcp.txt。MCP 提供现有的搜索、阅读及极客湾回放工具。具体说明见 integrations/deepseek-harness/README.md。
+保留上游 [LICENSE](LICENSE)。
 
-当前已验证构建、插件脚本语法、包清单、后端工作台路由和 MCP 握手；尚未在连接的 Harness profile 内验证安装及实际 UI 渲染。
+---
 
-## 停止全部任务
+## English
 
-批次管理页的“停止全部任务”会取消持久队列中的排队任务，并向正在执行的任务发送停止标记。排队任务立即显示“已停止”，执行中任务显示“停止中”，在当前下载/转录片段或模型请求返回后的检查点退出，不继续执行后续步骤。已发出的模型请求不保证能够撤回或免除费用。已完成笔记、音轨、逐字稿和总结检查点不删除；之后可显式重试。
+### What it is
 
-升级此功能需要重新加载网页后端和独立的 chat_worker.py 执行器；升级前已启动的旧执行器不具备停止检查能力。取消状态保存在本地，服务重启不会自动恢复用户取消的任务。评论分析是独立流程，不包含在视频队列的“停止全部任务”中。
+BiliNote Mini is a local-first video note tool. It prefers Bilibili subtitles, falls back to audio download plus local Whisper transcription, and asks an OpenAI-compatible model for timestamped Chinese notes, transcripts and summaries. Everything stays on your machine except the text sent to the model endpoint you configure.
+
+### Features
+
+- **Bilibili**: subtitle-first processing, multi-part / collection selection, batch jobs, comment collection and analysis.
+- **YouTube / Instagram**: single video / Shorts / Reels; audio transcription when subtitles are unavailable.
+- **Local library**: full-text search over titles, summaries and transcripts; time grouping, batch view and `#task=<id>` deep links.
+- **Terminology correction**: bind domain glossaries, correct transcripts and re-summarize.
+- **Chrome extension**: right-click “省流不看” on Bilibili / YouTube; the toolbar badge shows the number of unfinished tasks and ✓ when done.
+- **Zhihu judging**: right-click “BiliNote 判断” on a question page. It infers selected text / answer / question and shows a verdict, strengths, weaknesses, further thoughts and claims to verify in-page.
+- **Windows tray**: native `BiliNoteMiniTray.exe` for backend control, workbench, logs, autostart and exit; the installer can register a logon task.
+- **Model defaults**: DeepSeek endpoint `https://api.deepseek.com` and model `deepseek-chat` are pre-filled; any OpenAI-compatible endpoint works.
+
+### Windows install (recommended)
+
+Download from [Releases](https://github.com/hyc3z/BiliNote-mini/releases/tag/v0.7.6):
+
+- `BiliNoteMini-Setup-0.7.6.exe` — per-user install, no administrator required;
+- `BiliNoteMini-0.7.6-Setup.zip` — portable ZIP; extract and run `install.cmd`.
+
+The installer uses `%LOCALAPPDATA%\BiliNote Mini` (or another writable fallback, or a custom `/DIR=`), prepares Python 3.12 and dependencies with the bundled `uv`, creates `Start-BiliNoteMini.cmd` / `Open-BiliNoteMini.cmd` / `Stop-BiliNoteMini.cmd`, and attempts to install the tray and logon autostart.
+
+On Windows 11, new tray icons are placed in the `^` overflow area by default. If the machine blocks writes to Desktop / AppData / HKCU, shortcuts and autostart may be skipped; the installer prints warnings and the scripts in the install directory still work.
+
+### Development
+
+Requires 64-bit Python 3.11/3.12, Node.js and pnpm.
+
+```powershell
+cd backend
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+cd ../BillNote_frontend
+pnpm install --frozen-lockfile
+cd ..
+.\start-mini.ps1
+```
+
+Open `http://127.0.0.1:3015`. The installed build serves the frontend from the backend at `http://127.0.0.1:8483`.
+
+`imageio-ffmpeg` provides ffmpeg out of the box; optionally set `FFMPEG_LOCATION` to a system binary. NVIDIA users can install `backend/requirements-gpu.txt` and select GPU in settings.
+
+### Configuration
+
+- Endpoint default: `https://api.deepseek.com`
+- Model default: `deepseek-chat`
+- Enter your own DeepSeek API key once;
+- Bilibili Cookie can be pasted in settings or synced from the extension popup;
+- Data/config/models/logs live under `backend/data`, `backend/config`, `backend/models`, `backend/logs`.
+
+### Chrome extension
+
+Source: [`integrations/chrome-extension`](integrations/chrome-extension).
+
+- Extract `BiliNoteMini-Extension-0.6.4.zip` and load it from `chrome://extensions` with “Load unpacked”;
+- or use a locally built CRX. Off-store CRX files are restricted by Chrome; ZIP is more reliable.
+
+The default backend URL is `http://127.0.0.1:8483`; the installed workbench is also served there. For Vite development, change it to `3015` in the extension options. See the extension README for details.
+
+### Build and release
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\build-release.ps1
+```
+
+Builds the frontend, native tray, installer, setup ZIP and extension ZIP/CRX into `dist/release/`. The first build downloads `uv.exe` to `packaging/vendor/`; the CRX private key stays in `packaging/keys/` and is never committed.
+
+Frontend checks:
+
+```powershell
+cd BillNote_frontend
+pnpm exec tsc -p tsconfig.app.json --noEmit
+pnpm build
+```
+
+Backend tests:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p 'test_*.py'
+```
+
+### Project layout
+
+```text
+backend/                         FastAPI backend, downloaders, transcription, SQLite
+BillNote_frontend/               React/Vite workbench
+integrations/chrome-extension/   Chrome extension
+packaging/                       tray, installer, release scripts
+docs/                            logo and documentation assets
+dist/release/                    generated release artifacts
+```
+
+### Privacy
+
+- Videos, audio, cookies, settings and notes stay local; nothing is uploaded automatically.
+- Text summaries and Zhihu judging are sent to the model provider you configure; that is required for the feature.
+- The repository contains no user screenshots, cookies, API keys or CRX private keys. The README uses a logo and text only, not real browsing/task data.
+- Runtime directories (`backend/data`, `config`, `logs`, `models`, `note_results`) are ignored by Git.
+
+### License
+
+Upstream [LICENSE](LICENSE) retained.
